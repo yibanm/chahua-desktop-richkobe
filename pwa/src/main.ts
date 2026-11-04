@@ -4,7 +4,7 @@ import { provideServiceWorker } from '@angular/service-worker';
 import { AppInstall } from './app/pwa/app-install';
 import { AppUpdates } from './app/pwa/app-updates';
 import { LegacyMigration } from './app/pwa/legacy-migration';
-import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { HttpFeature, HttpFeatureKind, provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { bootstrapApplication } from '@angular/platform-browser';
 import {
   UrlSerializer,
@@ -25,6 +25,7 @@ import { Appearance } from './app/settings/appearance';
 import { Localization } from './app/i18n/localization';
 import { TranslocoHttpLoader } from './app/i18n/transloco-http-loader';
 import { defaultLocale, supportedLocales } from './app/settings/locale';
+import { isTauri } from './app/tauri/tauri-runtime';
 
 // https://stackoverflow.com/a/2117523/2800218
 if (isDevMode() && typeof crypto.randomUUID !== 'function')
@@ -34,11 +35,19 @@ if (isDevMode() && typeof crypto.randomUUID !== 'function')
     ) as ReturnType<Crypto['randomUUID']>;
   };
 
+// Tauri 壳内必须让 HttpClient 走 fetch：window.fetch 已被 main.tauri.ts 替换为
+// Rust 侧实现（绕开官方服务器只允许 https://chahua.app 的 CORS 白名单）。
+// Web/PWA 构建下 isTauri() 恒为 false，继续沿用默认的 XHR backend，行为不变。
+const httpFeatures: HttpFeature<HttpFeatureKind>[] = [withInterceptors([authInterceptor, jsonInterceptor])];
+if (isTauri()) httpFeatures.push(withFetch());
+
 bootstrapApplication(App, {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideServiceWorker(isDevMode() ? 'serviceWorker.js?development=1' : 'serviceWorker.js', {
-      enabled: true,
+      // Tauri 壳内禁用 ngsw：桌面端由 Tauri 自带更新机制负责，
+      // 且 Service Worker 的缓存会绕过 Rust HTTP 通道导致数据不一致。
+      enabled: !isTauri(),
       registrationStrategy: isDevMode() ? 'registerImmediately' : 'registerWhenStable:3000',
       updateViaCache: 'none',
     }),
@@ -62,7 +71,7 @@ bootstrapApplication(App, {
       await legacyMigration.run();
       await localization.initialize();
     }),
-    provideHttpClient(withInterceptors([authInterceptor, jsonInterceptor])),
+    provideHttpClient(...httpFeatures),
     provideChahuaBaseUrl(CHAHUA_API_BASE),
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
     { provide: UrlSerializer, useClass: PanelUrlSerializer },

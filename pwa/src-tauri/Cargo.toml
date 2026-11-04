@@ -1,0 +1,41 @@
+[package]
+name = "chahua-tauri"
+version = "0.1.0"
+description = "茶话 Tauri 桌面客户端"
+authors = ["richkobe"]
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/chahua-im/chahua"
+edition = "2021"
+rust-version = "1.90"
+
+# 上游 chahua 主仓为 AGPL-3.0，本壳复用其前端构建产物，故同样以 AGPL-3.0 分发。
+# 对外提供服务或分发二进制时，须开源全部改动（AGPL 第 13 条）。
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.12.5", features = [] }
+tauri-plugin-log = "2"
+# 官方 HTTP 插件：请求由 Rust 侧发出，绕开 WebView 的 CORS 限制。
+# 官方 chahui.app 的 Access-Control-Allow-Origin 硬编码为 https://chahua.app，
+# 前端直连会被拦截，故必须走此插件。
+tauri-plugin-http = "2"
+# 关闭窗口时记住窗口位置/尺寸
+tauri-plugin-window-state = "2"
+# 单实例：避免重复打开多个窗口抢同一账号连接
+tauri-plugin-single-instance = "2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

@@ -61,6 +61,18 @@
                 "CHAHUA_API_BASE": "'https://chahui.app/_api'"
               }
             },
+            "tauri": {
+              "outputPath": "dist/tauri",
+              "browser": "src/main.tauri.ts",
+              "optimization": true,
+              "outputHashing": "all",
+              "extractLicenses": true,
+              "sourceMap": false,
+              "define": {
+                "CHAHUA_API_BASE": "'https://chahui.app/_api'",
+                "CHAHUA_DEV_BACKEND": "false"
+              }
+            },
             "development": {
               "optimization": false,
               "extractLicenses": false,
