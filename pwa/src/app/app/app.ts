@@ -221,7 +221,11 @@ export class App {
    */
   protected async submitEntryLink() {
     const raw = this.entryLink().trim();
-    if (!raw) return;
+    // 空输入给出可见反馈，避免按钮"点了没反应"
+    if (!raw) {
+      this.entryLinkInvalid.set(true);
+      return;
+    }
     let token: string | undefined;
     let url: URL | undefined;
     try {

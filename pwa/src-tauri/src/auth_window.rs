@@ -58,3 +58,35 @@ pub fn open_auth_window(app: AppHandle, url: String) -> Result<(), String> {
         .map_err(|e| format!("open auth window failed: {e}"))?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::token_from_url;
+
+    #[test]
+    fn captures_token_on_official_hosts() {
+        let url = url::Url::parse("https://chahua.app/chats?token=abc123").unwrap();
+        assert_eq!(token_from_url(&url).as_deref(), Some("abc123"));
+        let url = url::Url::parse("https://chahui.app/chats?join=x&token=abc123").unwrap();
+        assert_eq!(token_from_url(&url).as_deref(), Some("abc123"));
+    }
+
+    #[test]
+    fn rejects_other_hosts_even_with_token_param() {
+        // Security-critical: never capture a token from a non-chahua host,
+        // otherwise a phishing site reached from the auth window could inject one.
+        let url = url::Url::parse("https://evil.example.com/?token=abc123").unwrap();
+        assert_eq!(token_from_url(&url), None);
+        // Suffix matching must respect domain boundaries: chahua.app.evil.com is not official.
+        let url = url::Url::parse("https://chahua.app.evil.com/?token=abc123").unwrap();
+        assert_eq!(token_from_url(&url), None);
+    }
+
+    #[test]
+    fn rejects_empty_token_and_missing_param() {
+        let url = url::Url::parse("https://chahua.app/chats?token=").unwrap();
+        assert_eq!(token_from_url(&url), None);
+        let url = url::Url::parse("https://chahua.app/chats").unwrap();
+        assert_eq!(token_from_url(&url), None);
+    }
+}
