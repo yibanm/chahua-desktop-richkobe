@@ -6,9 +6,14 @@
  * 不回显请求 Origin）。Tauri WebView 的 Origin 是 `http://tauri.localhost`，
  * 前端直连 API 会被 CORS 拦截。
  *
- * 解决办法用官方插件 `@tauri-apps/plugin-http`：它把 `fetch` 交给 Rust 侧执行，
+ * 解决办法用官方插件 `@tauri-apps/plugin-http`：它把请求交给 Rust 侧执行，
  * 服务端发出的请求不受 CORS 约束。配合 main.ts 里的 `provideHttpClient(withFetch())`，
- * Angular 的全部 HTTP 请求即走 Rust 通道，业务代码无需感知。
+ * Angular 发往 API 域名的请求即走 Rust 通道，业务代码无需感知。
+ *
+ * 但本地资源（i18n 文案、manifest 等相对路径请求）必须走 WebView 原生 fetch：
+ * Tauri 的 asset protocol 是 WebView2 的虚拟主机映射（SetVirtualHostNameToFolderMapping），
+ * 只在 WebView 进程内生效，Rust 侧的 reqwest 请求 `tauri.localhost` 解析不到任何服务。
+ * 因此这里按 URL 分流：本地/相对路径 → 原生 fetch；外部 http(s) → plugin-http。
  *
  * WebSocket 不经此插件：WS 握手不受 CORS 约束（实测 `Origin: http://tauri.localhost`
  * 同样返回 101 Switching Protocols），且后端鉴权走应用层 JSON-RPC 消息而非握手头，故直连即可。
@@ -18,9 +23,15 @@
  */
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 
-// Angular 的 FetchBackend 每次请求都重新查全局 fetch（其源码注释明确支持外部改写），
-// 因此在引导前替换即可让所有 HttpClient 请求走 Rust 通道。
-window.fetch = tauriFetch as typeof window.fetch;
+const nativeFetch = window.fetch.bind(window);
+
+window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  const isLocal = !/^https?:\/\//i.test(url) || /tauri\.localhost/i.test(url);
+  return isLocal
+    ? nativeFetch(input, init)
+    : (tauriFetch(input as Parameters<typeof tauriFetch>[0], init) as unknown as Promise<Response>);
+}) as typeof window.fetch;
 
 // 动态 import 不提升，保证上面的替换先于 ./main 的模块求值完成。
 await import('./main');

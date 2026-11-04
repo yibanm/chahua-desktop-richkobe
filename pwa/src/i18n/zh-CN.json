@@ -45,7 +45,13 @@
       "bootFailed": {
         "title": "应用加载遇到问题",
         "description": ""
-      }
+      },
+      "pasteHint": "粘贴带登录令牌的入口链接，或论坛发布帖地址（将在弹窗内登录官方论坛后自动完成授权）",
+      "pastePlaceholder": "粘贴论坛发布帖地址，或带 token 的入口链接 / 令牌",
+      "pasteSubmit": "进入",
+      "pasteInvalid": "链接无效：需要是 https 的茶话入口链接或论坛帖地址",
+      "pasteAuth": "授权登录",
+      "quickLogin": "快捷登录"
     },
     "updatePendingMessages": "仍有未发送的消息，更新将丢失这些任务。",
     "updateAnyway": "仍然更新"

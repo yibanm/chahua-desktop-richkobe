@@ -15,6 +15,7 @@ import {
   IonApp,
   IonButton,
   IonContent,
+  IonInput,
   IonMenu,
   IonRouterOutlet,
   IonSpinner,
@@ -28,6 +29,7 @@ import { filter, map, TimeoutError } from 'rxjs';
 import { ChatLink } from '../chats/chat-link/chat-link';
 import { ChatList } from '../chats/chat-list/chat-list';
 import { listSelection, ListTab, type ListSelection } from '../chats/list-tabs';
+import { isTauri, onAuthToken, openAuthWindow } from '../tauri/tauri-runtime';
 import { PanelNavigation } from '../navigation/panel-navigation';
 import { AppUpdates } from '../pwa/app-updates';
 import { NotificationPrompt } from '../pwa/notification-prompt/notification-prompt';
@@ -35,6 +37,9 @@ import { PushNotifications } from '../pwa/push-notifications';
 import { ContentScrollbars } from '../scrolling/content-scrollbars';
 import { SessionStore } from '../session/session-store';
 import { RpcError, RpcErrorCode, RpcTransportError } from '../api/rpc-error';
+
+/** 记住上次成功授权的入口地址，供桌面壳「快捷登录」一键复用。 */
+const ENTRY_URL_KEY = 'chahua.desktop.entryUrl';
 
 enum EntryState {
   Loading = 'loading',
@@ -60,6 +65,7 @@ enum EntryState {
     IonApp,
     IonButton,
     IonContent,
+    IonInput,
     IonMenu,
     IonRouterOutlet,
     IonSpinner,
@@ -108,6 +114,11 @@ export class App {
   );
   protected readonly needsLogin = computed(() => [EntryState.Missing, EntryState.Expired].includes(this.entryState()));
   protected readonly EntryState = EntryState;
+  // 桌面壳没有地址栏：官方入口是带 token 的外部链接，Web 端可直接点链接进入，
+  // 壳内必须提供粘贴入口，否则无登录态时用户无路可走。仅 Tauri 下显示。
+  protected readonly showEntryLinkInput = isTauri();
+  protected readonly entryLink = signal('');
+  protected readonly entryLinkInvalid = signal(false);
   private initializationEpoch = 0;
   private slowTimer?: ReturnType<typeof setTimeout>;
   protected readonly updates = inject(AppUpdates);
@@ -127,6 +138,13 @@ export class App {
     });
     afterRenderEffect(() => this.updates.setInteractive(!this.landingPage() && !!this.session.user()));
     this.session.restoreToken();
+    // 授权窗口捕获到 token 后自动采纳并初始化（桌面壳一键登录的回调侧）
+    if (this.showEntryLinkInput) {
+      void onAuthToken((token) => {
+        this.session.adoptToken(token);
+        void this.initialize();
+      });
+    }
     if ((!this.session.token() && !isDevMode()) || (this.landingPage() && !isPlatform('pwa'))) {
       this.loading.set(false);
     } else {
@@ -192,5 +210,67 @@ export class App {
       clearTimeout(this.slowTimer);
       this.loading.set(false);
     }
+  }
+
+  /**
+   * 桌面壳登录入口：接受「带 token 的入口链接」「裸 JWT」「论坛帖地址」三种粘贴格式。
+   * - 带 token 的链接 / 裸 JWT：直接采纳凭证；
+   * - 论坛帖地址：记住该地址并打开授权窗口，用户在窗口内登录官方论坛并点帖中入口链接，
+   *   应用捕获重定向 URL 上的 token 后自动登录（见 Rust 侧 auth_window）。
+   * 凭证始终来自用户自己的账号，不做任何认证绕过。
+   */
+  protected async submitEntryLink() {
+    const raw = this.entryLink().trim();
+    if (!raw) return;
+    let token: string | undefined;
+    let url: URL | undefined;
+    try {
+      url = new URL(raw, window.location.origin);
+      token = url.searchParams.get('token') ?? undefined;
+    } catch {
+      url = undefined;
+    }
+    // 裸 JWT 形如 header.payload[.signature]，base64url 段以 eyJ 开头的是 header
+    if (!token && /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/.test(raw)) token = raw;
+    if (token) {
+      this.entryLinkInvalid.set(false);
+      this.session.adoptToken(token);
+      void this.initialize();
+      return;
+    }
+    if (url && url.protocol === 'https:') {
+      // 论坛帖地址：记住后交给 Rust 侧开授权窗口，供下次一键快捷登录复用
+      this.entryLinkInvalid.set(false);
+      localStorage.setItem(ENTRY_URL_KEY, url.href);
+      try {
+        await openAuthWindow(url.href);
+      } catch {
+        this.entryLinkInvalid.set(true);
+      }
+      return;
+    }
+    this.entryLinkInvalid.set(true);
+  }
+
+  /**
+   * Quick login: reuse the entry address remembered from the last successful authorization to open the authorization window directly.
+   * If there is no remembered address but a locally stored token exists, try binding with it directly;
+   * if neither is present, show a hint asking to paste the address once first (the address is operational info issued by the official forum and is not hardcoded in the repo).
+   */
+  protected async quickLogin() {
+    const remembered = localStorage.getItem(ENTRY_URL_KEY);
+    if (remembered) {
+      try {
+        await openAuthWindow(remembered);
+        return;
+      } catch {
+        localStorage.removeItem(ENTRY_URL_KEY);
+      }
+    }
+    if (this.session.token()) {
+      void this.initialize();
+      return;
+    }
+    this.entryLinkInvalid.set(true);
   }
 }

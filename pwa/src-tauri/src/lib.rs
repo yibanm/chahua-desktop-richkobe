@@ -1,8 +1,11 @@
 use tauri::Manager;
 
+mod auth_window;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![auth_window::open_auth_window])
         // 单实例必须最先注册：第二个实例启动时把焦点交回已有窗口后直接退出。
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {

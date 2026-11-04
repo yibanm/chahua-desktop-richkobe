@@ -45,7 +45,13 @@
       "bootFailed": {
         "title": "Unable to load the app",
         "description": ""
-      }
+      },
+      "pasteHint": "Paste an entry link carrying your sign-in token, or the forum announcement URL (you will sign in to the official forum in a popup and authorization completes automatically)",
+      "pastePlaceholder": "Paste the forum post URL, or an entry link / token",
+      "pasteSubmit": "Enter",
+      "pasteInvalid": "Invalid link: it must be an https Chahua entry link or forum post URL",
+      "pasteAuth": "Sign in",
+      "quickLogin": "Quick sign-in"
     },
     "updatePendingMessages": "You have unsent messages. Updating will discard these tasks.",
     "updateAnyway": "Update anyway"

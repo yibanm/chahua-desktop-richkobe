@@ -64,6 +64,12 @@ export class SessionStore {
     if (token) this.saveToken(token);
   }
 
+  /** 桌面壳粘贴入口链接后采纳用户自己的凭证；不做任何认证绕过。 */
+  adoptToken(token: string) {
+    this.urlTokenAdopted = true;
+    this.saveToken(token);
+  }
+
   async initialize() {
     const epoch = ++this.initializationEpoch;
     const deadline = new Date(Date.now() + 30_000);

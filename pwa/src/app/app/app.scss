@@ -6,7 +6,8 @@ ion-split-pane {
 
 .entry-status {
   display: grid;
-  place-items: center;
+  // safe center：内容超出容器高度时回退为顶对齐，避免居中溢出把登录控件推出可视区
+  place-items: safe center;
   min-height: 100%;
 }
 
@@ -21,25 +22,58 @@ ion-split-pane {
 
 .entry-brand {
   display: block;
-  margin: 0 auto 24px;
+  margin: 0 auto 12px;
 }
 
 .entry-indicator {
-  height: 32px;
+  height: 24px;
 }
 
 .entry-status h1 {
   font-size: 22px;
-  margin: 20px 0 12px;
+  margin: 12px 0 8px;
 }
 
 .entry-description {
-  min-height: 48px;
+  min-height: 40px;
   line-height: 1.6;
   margin: 0;
 }
 
 .entry-actions {
-  min-height: 56px;
-  margin-top: 20px;
+  min-height: 40px;
+  margin-top: 12px;
+}
+
+.entry-paste {
+  margin-top: 16px;
+  text-align: left;
+}
+
+.entry-paste-hint {
+  color: var(--ion-color-medium);
+  font-size: 14px;
+  margin: 0 0 8px;
+}
+
+// ion-input 的 outline fill 需要显式给容器描边，否则在深色主题下不可见
+.entry-paste-input {
+  --background: var(--ion-color-step-50, #ffffff);
+  --border-color: var(--ion-color-step-300, #999999);
+  --border-radius: 8px;
+  --border-width: 1px;
+  --border-style: solid;
+  --padding-start: 12px;
+  --padding-end: 12px;
+  min-height: 44px;
+}
+
+.entry-paste-error {
+  color: var(--ion-color-danger);
+  font-size: 13px;
+  margin: 6px 0 0;
+}
+
+.entry-paste-button {
+  margin-top: 12px;
 }

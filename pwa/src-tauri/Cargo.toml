@@ -32,6 +32,8 @@ tauri-plugin-http = "2"
 tauri-plugin-window-state = "2"
 # 单实例：避免重复打开多个窗口抢同一账号连接
 tauri-plugin-single-instance = "2"
+# 授权窗口解析入口链接的 query 参数
+url = "2"
 
 [profile.release]
 codegen-units = 1
