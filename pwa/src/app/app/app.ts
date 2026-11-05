@@ -29,7 +29,7 @@ import { filter, map, TimeoutError } from 'rxjs';
 import { ChatLink } from '../chats/chat-link/chat-link';
 import { ChatList } from '../chats/chat-list/chat-list';
 import { listSelection, ListTab, type ListSelection } from '../chats/list-tabs';
-import { isTauri, onAuthToken, openAuthWindow } from '../tauri/tauri-runtime';
+import { isTauri, onAuthToken, onWindowFocused, openAuthWindow, openExternalUrl, readClipboard } from '../tauri/tauri-runtime';
 import { PanelNavigation } from '../navigation/panel-navigation';
 import { AppUpdates } from '../pwa/app-updates';
 import { NotificationPrompt } from '../pwa/notification-prompt/notification-prompt';
@@ -114,11 +114,14 @@ export class App {
   );
   protected readonly needsLogin = computed(() => [EntryState.Missing, EntryState.Expired].includes(this.entryState()));
   protected readonly EntryState = EntryState;
-  // 桌面壳没有地址栏：官方入口是带 token 的外部链接，Web 端可直接点链接进入，
-  // 壳内必须提供粘贴入口，否则无登录态时用户无路可走。仅 Tauri 下显示。
-  protected readonly showEntryLinkInput = isTauri();
+  // 桌面壳登录：主交互是「跳默认浏览器授权」，回流靠剪贴板感知 + 窗口焦点双触发；
+  // 应用内授权窗口降级为显式兜底链接；粘贴框折叠为次要入口。仅 Tauri 下显示。
+  protected readonly showDesktopLogin = isTauri();
+  protected readonly showPasteBox = signal(false);
   protected readonly entryLink = signal('');
   protected readonly entryLinkInvalid = signal(false);
+  protected readonly awaitingBrowserAuth = signal(false);
+  private clipboardPoll?: ReturnType<typeof setInterval>;
   private initializationEpoch = 0;
   private slowTimer?: ReturnType<typeof setTimeout>;
   protected readonly updates = inject(AppUpdates);
@@ -138,12 +141,18 @@ export class App {
     });
     afterRenderEffect(() => this.updates.setInteractive(!this.landingPage() && !!this.session.user()));
     this.session.restoreToken();
-    // 授权窗口捕获到 token 后自动采纳并初始化（桌面壳一键登录的回调侧）
-    if (this.showEntryLinkInput) {
+    if (this.showDesktopLogin) {
+      // 兜底路线：应用内授权窗口捕获到 token 后自动采纳并初始化
       void onAuthToken((token) => {
+        this.stopClipboardPoll();
         this.session.adoptToken(token);
         void this.initialize();
       });
+      // 主路线回流：从浏览器授权返回应用（窗口重新获焦）时检查剪贴板里的 token
+      void onWindowFocused(() => {
+        if (this.awaitingBrowserAuth()) void this.tryAdoptClipboardToken();
+      });
+      inject(DestroyRef).onDestroy(() => this.stopClipboardPoll());
     }
     if ((!this.session.token() && !isDevMode()) || (this.landingPage() && !isPlatform('pwa'))) {
       this.loading.set(false);
@@ -213,68 +222,145 @@ export class App {
   }
 
   /**
-   * 桌面壳登录入口：接受「带 token 的入口链接」「裸 JWT」「论坛帖地址」三种粘贴格式。
-   * - 带 token 的链接 / 裸 JWT：直接采纳凭证；
-   * - 论坛帖地址：记住该地址并打开授权窗口，用户在窗口内登录官方论坛并点帖中入口链接，
-   *   应用捕获重定向 URL 上的 token 后自动登录（见 Rust 侧 auth_window）。
-   * 凭证始终来自用户自己的账号，不做任何认证绕过。
+   * 主登录路线：在系统默认浏览器打开入口地址，用户授权后 token 经剪贴板回流。
+   * 官方重定向硬编码回 chahua.app（浏览器地址栏），桌面应用无法直接接收，
+   * 故回流通道为：浏览器里复制入口链接（或授权页一键复制）→ 回到应用窗口 →
+   * 焦点回归或轮询读到剪贴板里的 token 即自动登录。凭证始终来自用户自己的账号。
    */
-  protected async submitEntryLink() {
+  protected async browserAuth() {
+    const url = this.entryLink().trim() || localStorage.getItem(ENTRY_URL_KEY) || '';
+    if (!url) {
+      // 没有可用入口地址：展开粘贴框让用户提供一次
+      this.showPasteBox.set(true);
+      this.entryLinkInvalid.set(true);
+      return;
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      this.showPasteBox.set(true);
+      this.entryLinkInvalid.set(true);
+      return;
+    }
+    if (parsed.protocol !== 'https:') {
+      this.showPasteBox.set(true);
+      this.entryLinkInvalid.set(true);
+      return;
+    }
+    localStorage.setItem(ENTRY_URL_KEY, parsed.href);
+    this.entryLinkInvalid.set(false);
+    this.awaitingBrowserAuth.set(true);
+    this.startClipboardPoll();
+    try {
+      await openExternalUrl(parsed.href);
+    } catch {
+      this.awaitingBrowserAuth.set(false);
+      this.stopClipboardPoll();
+      this.entryLinkInvalid.set(true);
+    }
+  }
+
+  /** 兜底路线：应用内授权窗口（浏览器不可用或用户不想离开应用时）。 */
+  protected async fallbackAuthWindow() {
+    const url = this.entryLink().trim() || localStorage.getItem(ENTRY_URL_KEY);
+    if (!url) {
+      this.showPasteBox.set(true);
+      this.entryLinkInvalid.set(true);
+      return;
+    }
+    this.entryLinkInvalid.set(false);
+    localStorage.setItem(ENTRY_URL_KEY, url);
+    try {
+      await openAuthWindow(url);
+    } catch {
+      this.entryLinkInvalid.set(true);
+    }
+  }
+
+  /** 轮询剪贴板：浏览器授权期间每 2 秒检查一次，最长 5 分钟。 */
+  private startClipboardPoll() {
+    this.stopClipboardPoll();
+    const deadline = Date.now() + 5 * 60_000;
+    this.clipboardPoll = setInterval(() => {
+      if (Date.now() > deadline) {
+        this.awaitingBrowserAuth.set(false);
+        this.stopClipboardPoll();
+        return;
+      }
+      void this.tryAdoptClipboardToken();
+    }, 2000);
+  }
+
+  private stopClipboardPoll() {
+    if (this.clipboardPoll) {
+      clearInterval(this.clipboardPoll);
+      this.clipboardPoll = undefined;
+    }
+  }
+
+  /** 从剪贴板文本提取 token 并采纳；提取不到则什么都不做（继续等待）。 */
+  protected async tryAdoptClipboardToken() {
+    const text = (await readClipboard())?.trim();
+    if (!text) return;
+    const token = extractToken(text);
+    if (!token) return;
+    this.stopClipboardPoll();
+    this.awaitingBrowserAuth.set(false);
+    this.session.adoptToken(token);
+    void this.initialize();
+  }
+
+  /**
+   * 折叠粘贴框的提交：接受「带 token 的入口链接」「裸 JWT」「论坛帖地址」。
+   * 前两者直接采纳凭证；论坛帖地址记住后走浏览器授权主路线。
+   */
+  protected submitEntryLink() {
     const raw = this.entryLink().trim();
-    // 空输入给出可见反馈，避免按钮"点了没反应"
     if (!raw) {
       this.entryLinkInvalid.set(true);
       return;
     }
-    let token: string | undefined;
-    let url: URL | undefined;
-    try {
-      url = new URL(raw, window.location.origin);
-      token = url.searchParams.get('token') ?? undefined;
-    } catch {
-      url = undefined;
-    }
-    // 裸 JWT 形如 header.payload[.signature]，base64url 段以 eyJ 开头的是 header
-    if (!token && /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/.test(raw)) token = raw;
+    const token = extractToken(raw);
     if (token) {
       this.entryLinkInvalid.set(false);
       this.session.adoptToken(token);
       void this.initialize();
       return;
     }
+    let url: URL | undefined;
+    try {
+      url = new URL(raw, window.location.origin);
+    } catch {
+      url = undefined;
+    }
     if (url && url.protocol === 'https:') {
-      // 论坛帖地址：记住后交给 Rust 侧开授权窗口，供下次一键快捷登录复用
-      this.entryLinkInvalid.set(false);
-      localStorage.setItem(ENTRY_URL_KEY, url.href);
-      try {
-        await openAuthWindow(url.href);
-      } catch {
-        this.entryLinkInvalid.set(true);
-      }
+      this.entryLink.set(url.href);
+      void this.browserAuth();
       return;
     }
     this.entryLinkInvalid.set(true);
   }
 
-  /**
-   * Quick login: reuse the entry address remembered from the last successful authorization to open the authorization window directly.
-   * If there is no remembered address but a locally stored token exists, try binding with it directly;
-   * if neither is present, show a hint asking to paste the address once first (the address is operational info issued by the official forum and is not hardcoded in the repo).
-   */
-  protected async quickLogin() {
-    const remembered = localStorage.getItem(ENTRY_URL_KEY);
-    if (remembered) {
-      try {
-        await openAuthWindow(remembered);
-        return;
-      } catch {
-        localStorage.removeItem(ENTRY_URL_KEY);
-      }
-    }
+  /** 快捷登录：本地已有 token 直接绑定；否则走浏览器授权主路线。 */
+  protected quickLogin() {
     if (this.session.token()) {
       void this.initialize();
       return;
     }
-    this.entryLinkInvalid.set(true);
+    void this.browserAuth();
   }
+}
+
+/** 从「带 token 的链接」或「裸 JWT」文本中提取凭证；都不是则返回 undefined。 */
+function extractToken(raw: string): string | undefined {
+  try {
+    const token = new URL(raw, window.location.origin).searchParams.get('token');
+    if (token) return token;
+  } catch {
+    // 不是 URL，继续按裸 JWT 判断
+  }
+  // 裸 JWT 形如 header.payload[.signature]，base64url 段以 eyJ 开头的是 header
+  if (/^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/.test(raw)) return raw;
+  return undefined;
 }

@@ -70,7 +70,8 @@ jobs:
         run: npm ci
 
       # 产物命名规范（CLAUDE.md 0.10）：软件名-版本-平台.扩展名
-      # 版本与软件名一律从 tauri.conf.json 读取，杜绝「文件名版本与实际版本不同步」
+      # 软件名固定为对外发布名 chahua-tauri（小写连字符）；productName 是中文界面名，
+      # 不能进产物文件名。版本一律从 tauri.conf.json 读取，杜绝版本不同步。
       - name: Resolve artifact naming
         id: naming
         shell: bash
@@ -78,7 +79,7 @@ jobs:
           node -e '
             const fs = require("fs");
             const c = JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json", "utf8"));
-            const name = c.productName;
+            const name = "chahua-tauri";
             const version = c.version.replace(/^v/, "");
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `name=${name}\n`);
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
@@ -121,17 +122,20 @@ jobs:
 
       # 便携版：Tauri 把前端资源内嵌进单个 exe，压 zip 即为便携版
       # （全局经验 2026-11-03 坑点 5：Tauri 便携版 = 单 exe，不需打包运行时目录）
+      # exe 文件名随 productName（中文），必须 glob 定位，不硬编码（坑点 3）
       - name: Create portable zip
         shell: pwsh
         run: |
-          $exe = "src-tauri/target/release/${{ steps.naming.outputs.name }}.exe"
-          if (-not (Test-Path $exe)) {
-            Write-Error "未找到可执行文件: $exe"
+          $exe = Get-ChildItem -Path "src-tauri/target/release" -Filter '*.exe' |
+            Where-Object { $_.Name -notmatch '^(msi|nsis)' } | Select-Object -First 1
+          if (-not $exe) {
+            Write-Error "未找到可执行文件"
             Get-ChildItem -Recurse src-tauri/target/release -Filter '*.exe' | Select-Object FullName
             exit 1
           }
-          Compress-Archive -Path $exe -DestinationPath "../dist-release/${{ steps.naming.outputs.portable }}" -Force
-          Get-ChildItem ../dist-release | Format-Table Name, Length
+          Write-Output ("找到 exe: " + $exe.Name)
+          Compress-Archive -Path $exe.FullName -DestinationPath "../dist-release/${{ steps.naming.outputs.portable }}" -Force
+          Get-ChildItem ../dist-release | Select-Object Name, Length
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7

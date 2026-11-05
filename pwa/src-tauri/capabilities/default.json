@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "茶话 Tauri 客户端权限：核心 + 官方 HTTP 插件（限定官方 API 域）+ 窗口状态",
+  "description": "茶话 Tauri 客户端权限：核心 + 官方 HTTP 插件（限定官方 API 域）+ 窗口状态 + 浏览器跳转（仅 https）+ 剪贴板只读",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -12,6 +12,11 @@
         { "url": "https://chahui.app/*" },
         { "url": "https://chahua.app/*" }
       ]
-    }
+    },
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://**" }]
+    },
+    "clipboard-manager:allow-read-text"
   ]
 }

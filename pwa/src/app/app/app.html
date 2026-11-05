@@ -40,27 +40,37 @@
               <ion-button (click)="updates.reload()">{{ 'app.entry.reload' | transloco }}</ion-button>
             }
           </div>
-          @if (showEntryLinkInput && needsLogin() && !loading()) {
+          @if (showDesktopLogin && needsLogin() && !loading()) {
             <div class="entry-paste">
-              <p class="entry-paste-hint">{{ 'app.entry.pasteHint' | transloco }}</p>
-              <ion-input
-                class="entry-paste-input"
-                fill="outline"
-                [value]="entryLink()"
-                (ionInput)="entryLink.set($any($event.target).value ?? ''); entryLinkInvalid.set(false)"
-                (keyup.enter)="submitEntryLink()"
-                [placeholder]="'app.entry.pastePlaceholder' | transloco"
-                [clearOnEdit]="false"
-                type="text" />
-              @if (entryLinkInvalid()) {
-                <p class="entry-paste-error">{{ 'app.entry.pasteInvalid' | transloco }}</p>
-              }
-              <ion-button class="entry-paste-button" expand="block" (click)="submitEntryLink()">
-                {{ 'app.entry.pasteAuth' | transloco }}
+              <ion-button class="entry-paste-button" expand="block" (click)="browserAuth()">
+                {{ 'app.entry.browserAuth' | transloco }}
               </ion-button>
               <ion-button class="entry-paste-button" expand="block" fill="outline" (click)="quickLogin()">
                 {{ 'app.entry.quickLogin' | transloco }}
               </ion-button>
+              @if (awaitingBrowserAuth()) {
+                <p class="entry-paste-hint">{{ 'app.entry.awaitingHint' | transloco }}</p>
+              }
+              <p class="entry-paste-link">
+                <a (click)="fallbackAuthWindow()">{{ 'app.entry.fallbackWindow' | transloco }}</a>
+                ·
+                <a (click)="showPasteBox.set(!showPasteBox())">{{ 'app.entry.togglePaste' | transloco }}</a>
+              </p>
+              @if (showPasteBox()) {
+                <p class="entry-paste-hint">{{ 'app.entry.pasteHint' | transloco }}</p>
+                <ion-input
+                  class="entry-paste-input"
+                  fill="outline"
+                  [value]="entryLink()"
+                  (ionInput)="entryLink.set($any($event.target).value ?? ''); entryLinkInvalid.set(false)"
+                  (keyup.enter)="submitEntryLink()"
+                  [placeholder]="'app.entry.pastePlaceholder' | transloco"
+                  [clearOnEdit]="false"
+                  type="text" />
+                @if (entryLinkInvalid()) {
+                  <p class="entry-paste-error">{{ 'app.entry.pasteInvalid' | transloco }}</p>
+                }
+              }
             </div>
           }
         </div>

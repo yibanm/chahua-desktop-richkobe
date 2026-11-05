@@ -46,12 +46,16 @@
         "title": "Unable to load the app",
         "description": ""
       },
-      "pasteHint": "Paste an entry link carrying your sign-in token, or the forum announcement URL (you will sign in to the official forum in a popup and authorization completes automatically)",
+      "pasteHint": "Paste an entry link with a sign-in token, a bare token, or the forum post URL",
       "pastePlaceholder": "Paste the forum post URL, or an entry link / token",
       "pasteSubmit": "Enter",
-      "pasteInvalid": "Invalid link: it must be an https Chahua entry link or forum post URL",
+      "pasteInvalid": "Invalid input: it must be an https link, or an entry link / token",
       "pasteAuth": "Sign in",
-      "quickLogin": "Quick sign-in"
+      "quickLogin": "Quick sign-in",
+      "browserAuth": "Sign in via browser",
+      "awaitingHint": "The sign-in page is open in your browser. After signing in, copy the entry link and return here to sign in automatically.",
+      "fallbackWindow": "Use in-app sign-in window instead",
+      "togglePaste": "Paste link / token manually"
     },
     "updatePendingMessages": "You have unsent messages. Updating will discard these tasks.",
     "updateAnyway": "Update anyway"

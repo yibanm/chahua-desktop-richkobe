@@ -77,3 +77,20 @@ ion-split-pane {
 .entry-paste-button {
   margin-top: 12px;
 }
+
+.entry-paste-link {
+  margin: 12px 0 0;
+  font-size: 13px;
+  text-align: center;
+  color: var(--ion-color-medium);
+
+  a {
+    color: var(--ion-color-primary);
+    cursor: pointer;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}

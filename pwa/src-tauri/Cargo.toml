@@ -28,6 +28,10 @@ tauri-plugin-log = "2"
 # 官方 chahui.app 的 Access-Control-Allow-Origin 硬编码为 https://chahua.app，
 # 前端直连会被拦截，故必须走此插件。
 tauri-plugin-http = "2"
+# 跳系统默认浏览器打开授权链接（官方插件，MIT/Apache-2.0）
+tauri-plugin-opener = "2"
+# 读取剪贴板以接收浏览器授权后回流的 token（官方插件，MIT/Apache-2.0）
+tauri-plugin-clipboard-manager = "2"
 # 关闭窗口时记住窗口位置/尺寸
 tauri-plugin-window-state = "2"
 # 单实例：避免重复打开多个窗口抢同一账号连接
