@@ -25,7 +25,10 @@
       </ion-item>
     } @else if (notifications.permission() === 'denied') {
       <ion-item lines="none">
-        <ion-note class="ion-text-wrap">{{ 'settings.menu.notificationBlockedHelp' | transloco }}</ion-note>
+        <ion-note class="ion-text-wrap">
+          {{ (isDesktopShell ? 'settings.menu.notificationBlockedHelpDesktop' : 'settings.menu.notificationBlockedHelp')
+          | transloco }}
+        </ion-note>
       </ion-item>
     } @else if (notifications.permission() === 'default') {
       <ion-item lines="none">
@@ -33,6 +36,16 @@
           <ion-icon slot="start" [icon]="notificationIcon"></ion-icon>
           {{ 'settings.menu.requestNotifications' | transloco }}
         </ion-button>
+      </ion-item>
+    } @else {
+      <ion-item lines="none">
+        <ion-button fill="clear" [disabled]="testing()" (click)="sendTest()">
+          <ion-icon slot="start" [icon]="notificationIcon"></ion-icon>
+          {{ 'settings.menu.testNotification' | transloco }}
+        </ion-button>
+        @if (testing()) {
+          <ion-spinner slot="end" />
+        }
       </ion-item>
     }
     @let error = notifications.error();

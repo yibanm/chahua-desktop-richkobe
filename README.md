@@ -1,31 +1,140 @@
-# chahua
+# 茶话桌面版 — 把茶话装成 Windows 独立窗口程序
 
-chahua is a chat application targeting ~20k users / ~2k messages per day.
+在上游 [chahua-im/chahua](https://github.com/chahua-im/chahua) 之上增加了一个 **Windows 桌面客户端**：装好后从开始菜单直接打开，是一个独立窗口，不再依附 Edge/Chrome 浏览器，也不会混在浏览器标签页里。
 
-## Project layout
+桌面版连接的是**官方服务器**——好友、群组、聊天记录、文件与网页版、手机版完全一致，用同一个茶话账号登录就能看到全部内容。本仓库同时保留了上游的完整源码（前端 PWA 与 Rust 后端），可自查、可自建服务器。
 
-- `backend/`: Rust, Axum, Diesel, PostgreSQL — see [backend/README.md](backend/README.md) and [backend/AGENTS.md](backend/AGENTS.md)
-- `pwa/`: Angular + Ionic PWA client — see [pwa/README.md](pwa/README.md) and [pwa/AGENTS.md](pwa/AGENTS.md)
+## 功能特性
 
-## Local development
+### 登录
 
-All worktrees share local PostgreSQL, Meilisearch, and RustFS. Each worktree runs its own backend and PWA on automatically assigned, persistent ports:
+- **一键登录**：本机浏览器里登录过茶话网页版的，点一下就自动识别浏览器已保存的登录信息并进入，不用复制任何链接。
+- **手动登录**：展开令牌输入框，粘贴登录令牌或带令牌的入口链接即可进入；识别不到浏览器登录信息时，界面会给出具体的导出操作指引。
+- **登录超时保护**：登录最多等 5 秒，超时直接给出提示与下一步指引，不会一直转圈。
+- **登录状态长期保留**：登录一次即可，之后打开无需重新登录，除非你主动退出。
+
+### 消息与通知
+
+- **系统通知**：程序开着时收到新消息、且你不在那个会话里，就弹 Windows 系统通知。桌面版**默认开启**通知。
+- **测试通知按钮**：设置 → 消息通知里点「发送测试通知」，立刻能确认通知通不通；不通时页面会说明要去 Windows 设置的哪一项放行。
+- **未读角标与标题计数**：窗口不在前台时，任务栏与标题上显示未读数，@提及单独标记。
+- **通知免打扰**：你正看着的那个会话不会重复弹通知。
+
+### 桌面体验
+
+- **独立窗口**：不占用浏览器标签页，可单独最小化、置顶、多显示器摆放。
+- **记住窗口位置和大小**：下次打开恢复到你上次调整的样子。
+- **重复打开保护**：已经开着时再点图标，会把已有窗口唤到前面，而不是多开一个。
+- **启动不白闪**：窗口底色与应用一致，启动过程有遮罩。
+- **简体中文安装界面**，产品名为「茶话」。
+- **退出登录**：设置页一键退出并立即回到登录界面，可切换账号。
+
+### 功能范围
+
+聊天、群组、话题、好友、收藏、贴纸、附件、语音消息、在线状态、已读回执等能力与网页版同源，桌面版没有裁剪业务功能。已知限制见[常见问题](#常见问题)。
+
+## 截图
+
+（暂无随仓库提交的界面截图；安装后主界面与网页版一致，额外多出桌面登录入口与设置页的「退出登录」「发送测试通知」。）
+
+## 下载与安装
+
+发布页：https://github.com/yibanm/chahua-richkobe/releases
+
+| 平台 | 文件 | 安装方式 |
+|---|---|---|
+| Windows x64 | `chahua-tauri-1.0.0-windows-x64-setup.exe` | 双击运行，按简体中文向导安装（可选安装路径、创建桌面图标） |
+| Windows x64（便携版） | `chahua-tauri-1.0.0-windows-x64-portable.zip` | 解压到任意目录，双击里面的 exe 即可运行，不写注册表、不需管理员权限 |
+
+系统要求：
+
+1. Windows 10 1803 及以上，64 位。
+2. 需要 WebView2 运行时。Windows 11 与较新的 Windows 10 已内置；若缺失，安装包会提示安装，也可从微软官网下载「Evergreen Standalone Installer」。
+3. 首次启动需联网。
+4. 覆盖安装即可升级，账号与登录状态保留。
+
+## 使用说明
+
+1. **首次打开**：出现登录界面，点「一键登录」。若提示识别不到，说明本机浏览器里没登录过茶话网页版——按界面指引用 CookieXport 扩展从网页版导出，把里面的令牌粘贴到「手动登录」的输入框。
+2. **登录成功后**：直接进入消息列表，不会停在群组邀请页。
+3. **开通知**：桌面版默认开启；首次会弹一次系统权限请求。想确认能不能收到，去 设置 → 消息通知 → 「发送测试通知」。
+4. **收不到通知**：检查 Windows 设置 → 系统 → 通知里是否允许本应用，以及专注助手/勿扰模式是否关着。
+5. **别关程序**：桌面版没有离线推送，程序完全关闭后不会收到提醒。想不漏消息就最小化，不要退出。
+6. **退出登录/换账号**：设置页底部「退出登录」，点完立即回到登录界面。
+
+## 从源码构建
+
+前置：Node.js 24（见 `pwa/.nvmrc`）、Rust stable、以及 Tauri 2 的[平台依赖](https://tauri.app/start/prerequisites/)。
 
 ```bash
-node runspace/dev.mjs init
-node runspace/dev.mjs dev     # Backend auto-restart + frontend hot reload
+cd pwa
+npm ci
+
+# 只跑前端（连接本仓库自带的本地后端，便于开发调试）
+node ../runspace/dev.mjs init
+node ../runspace/dev.mjs dev
+
+# 桌面客户端：开发模式（前端热重载 + 壳自动重启）
+npm run tauri:dev
+
+# 桌面客户端：打包安装包与便携版
+npm run tauri:build
 ```
 
-Install the backend watcher once with `cargo install --locked bacon`. The launcher prints this worktree's URL. Ctrl+C stops its frontend and backend, retaining shared services and data.
+产物位置：`pwa/src-tauri/target/release/bundle/nsis/`（安装包）与 `.../release/`（便携版 exe）。
 
-Prerequisites, worktrees, configuration, and container management: [docs/local-setup.md](docs/local-setup.md).
+只想连官方服务器跑前端构建：`npm run build:tauri`，输出在 `pwa/dist/tauri/`。
 
-## Formatting and hooks
+### 自动构建
 
-This repo includes a shared Git pre-commit hook at `.githooks/pre-commit` that checks the formatting of staged files only. Enable it in a clone:
+推送 `dev` 分支或 `v*` 标签会触发 `.github/workflows/tauri-desktop.yml`，在 GitHub Actions 上产出安装包与便携版：
 
-```bash
-git config core.hooksPath .githooks
+- 推 `dev`：产物作为 workflow artifact 上传，供测试；
+- 推 `v*` 标签：构建后自动创建对应的 GitHub Release，并附上 `CHANGELOG.md` 里该版本的更新日志。
+
+## 项目结构
+
+```
+backend/          Rust + Axum + Diesel + PostgreSQL 服务端（上游源码）
+pwa/              Angular + Ionic 前端（上游源码 + 桌面适配）
+  src-tauri/      Tauri 2 桌面壳：窗口、插件、权限、打包配置
+    src/pwa_token.rs   读取浏览器已保存的登录信息（只读扫描）
+  src/app/tauri/       桌面专属能力桥接与运行时判定
+  src/main.tauri.ts    桌面构建入口（HTTP 通道适配）
+docs/             本地开发环境与鉴权说明
+runspace/         本地一键开发环境脚本
+dist-release/     本机留存的发布产物（不入仓库）
 ```
 
-Formatting commands for each subproject are described in its README.
+桌面适配只集中在 `pwa/src-tauri/`、`pwa/src/app/tauri/`、`pwa/src/main.tauri.ts` 与 angular.json 的 `tauri` 构建配置里；网页版行为不受影响。
+
+上游开发文档：[backend/README.md](backend/README.md)、[backend/AGENTS.md](backend/AGENTS.md)、[pwa/README.md](pwa/README.md)、[pwa/AGENTS.md](pwa/AGENTS.md)、[docs/local-setup.md](docs/local-setup.md)。
+
+## 常见问题
+
+**一键登录识别不到？**
+前提是你在本机 Edge/Chrome/Brave 里登录过茶话网页版。从未登录过、或清过浏览器数据，就会识别不到。按界面指引用 CookieXport 导出后走「手动登录」。
+
+**为什么关了程序就收不到消息？**
+网页版和手机版的离线提醒依赖浏览器推送服务，独立桌面窗口不具备这条通道。桌面版的通知只在程序运行时有效——想不漏消息请最小化而不是退出。
+
+**点通知能跳到那条消息吗？**
+目前不能，通知只做提醒，需要自己打开窗口找到对应会话。
+
+**登录很慢？**
+慢的环节是连接官方服务器，不是本机。启动时已提前预热连接，超过 10 秒会自动重试一次，登录本身 5 秒超时后给指引而不是无限等待。
+
+**和官方网页版会冲突吗？**
+不会。两者是同一个账号的同一份数据，可以同时用；但同一条消息不会在两边各弹一次通知（桌面版会跳过你正在看的会话）。
+
+**能自建服务器吗？**
+可以，`backend/` 是完整的服务端源码。但自建后就是独立的一套数据，与官方账号、官方网页版不互通。
+
+**更新日志在哪？**
+[CHANGELOG.md](CHANGELOG.md)，发布页也附对应版本的说明。
+
+## 许可证
+
+AGPL-3.0-or-later，与上游一致。
+
+对外提供服务或分发二进制时，须同时公开改动后的完整源代码。本仓库已公开全部改动。

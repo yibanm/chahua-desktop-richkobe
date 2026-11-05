@@ -45,7 +45,16 @@
       "bootFailed": {
         "title": "應用程式載入遇到問題",
         "description": ""
-      }
+      },
+      "pasteHint": "貼上 JWT 權杖或帶 token 的進入連結",
+      "pastePlaceholder": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiIs…",
+      "pasteSubmit": "登入",
+      "pasteInvalid": "內容無效：需要是帶 token 的連結或 JWT 權杖",
+      "manualLogin": "手動登入",
+      "oneClick": "一鍵登入",
+      "pwaFound": "已識別到瀏覽器裡茶話網頁版的登入資訊，正在自動登入（5 秒內完成，失敗會給出指引）……",
+      "pwaMissing": "未識別到瀏覽器裡的茶話登入資訊。請先在 Edge 裡開啟茶話網頁版登入一次；或用 CookieXport 擴充功能右鍵茶話網頁匯出 Cookie，複製其中的 JWT，點「手動登入」貼上。",
+      "scanning": "正在識別瀏覽器登入資訊……"
     },
     "updatePendingMessages": "仍有未傳送的訊息，更新將遺失這些工作。",
     "updateAnyway": "仍然更新"
@@ -113,10 +122,15 @@
       "devUidSwitch": "切換",
       "privacy": "隱私",
       "requestNotifications": "申請通知權限",
+      "testNotification": "傳送測試通知",
+      "testNotificationTitle": "茶話",
+      "testNotificationBody": "這是一則測試通知，能看到它代表通知已開啟。",
+      "notificationBlockedHelpDesktop": "系統未允許茶話傳送通知。請在 Windows「設定 → 系統 → 通知」中允許本應用程式，並確認未開啟勿擾模式，然後返回此頁面。",
       "install": "安裝應用程式",
       "notificationBlockedHelp": "通知權限已被拒絕。請在瀏覽器的網站設定中允許通知，然後返回此頁面。",
       "notificationWorkerUnavailable": "通知服務暫不可用，請重試。",
-      "notificationDisableFailed": "關閉背景推播失敗，請重試。"
+      "notificationDisableFailed": "關閉背景推播失敗，請重試。",
+      "logout": "登出"
     },
     "general": {
       "title": "聊天設定",

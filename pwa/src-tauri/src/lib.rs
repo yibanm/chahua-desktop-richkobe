@@ -14,6 +14,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
             // release 也落盘日志：用户反馈问题时可直接提供日志文件定位

@@ -1,13 +1,15 @@
 name: Tauri Desktop Build
 
-# 阶段一（CLAUDE.md 0.11）：推 dev 分支或手动触发即构建，产物只上传为 workflow artifact，
-# 不创建 Release、不打 tag。用户测试通过后另行指示才进入阶段二发布。
+# 阶段一（CLAUDE.md 0.11）：推 dev 分支或手动触发即构建，产物只上传为 workflow artifact；
+# 阶段二：推 v* 标签时，同一 job 末尾自动创建 GitHub Release 并附上合规命名的产物。
 on:
   workflow_dispatch:
   push:
     branches: [dev, build]
+    tags: ['v*']
     paths:
       - 'pwa/**'
+      - 'CHANGELOG.md'
       - '.github/workflows/tauri-desktop.yml'
 
 # 同一分支的新推送取消旧运行，避免浪费额度
@@ -16,7 +18,8 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  # 创建 Release 需要写权限；分支构建不会用到，但 permissions 无法按 ref 分级
+  contents: write
 
 env:
   # 上游 pwa/.nvmrc pin v24.22.0，CI 与本地保持一致以免构建差异
@@ -152,3 +155,28 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           ls -la ../dist-release/ >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      # 阶段二：仅标签推送时创建 Release（CLAUDE.md 0.11 第 2 条）。
+      # 说明文字从 CHANGELOG.md 抽当前版本段落，禁止把日志写死在这里（0.10 第 8 条）。
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          ver="${tag#v}"
+          awk -v ver="$ver" '
+            BEGIN { p = 0 }
+            $0 ~ "^## v" ver "([[:space:]]|$)" { p = 1; next }
+            p && /^## / { exit }
+            p { print }
+          ' ../CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::error::CHANGELOG.md 中未找到 ## v${ver} 段落，拒绝发布空说明"
+            exit 1
+          fi
+          gh release create "$tag" ../dist-release/* \
+            --title "茶话桌面版 v${ver}" \
+            --notes-file notes.md
+          echo "Release: https://github.com/${{ github.repository }}/releases/tag/${tag}" >> "$GITHUB_STEP_SUMMARY"

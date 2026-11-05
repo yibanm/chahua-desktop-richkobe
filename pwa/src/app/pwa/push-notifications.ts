@@ -6,7 +6,12 @@ import { ModalController } from '@ionic/angular';
 import { TranslocoService } from '@jsverse/transloco';
 import { filter, firstValueFrom, map, timeout } from 'rxjs';
 import { RpcApi } from '../../generated/rpc-api';
-import { isTauri } from '../tauri/tauri-runtime';
+import {
+  desktopNotify,
+  desktopPermission,
+  desktopRequestPermission,
+  isTauri,
+} from '../tauri/tauri-runtime';
 import {
   ApiPushProvider,
   GroupKind,
@@ -53,8 +58,10 @@ export class PushNotifications {
   readonly permission = this.permissionState.asReadonly();
   readonly busy = this.working.asReadonly();
   readonly error = this.failure.asReadonly();
+  // 桌面壳走原生通知插件（WebView2 无 Web Notification API，也无 ServiceWorker 推送通道）
   readonly supported =
-    'Notification' in window && 'PushManager' in window && 'serviceWorker' in navigator && this.push.isEnabled;
+    isTauri() ||
+    ('Notification' in window && 'PushManager' in window && 'serviceWorker' in navigator && this.push.isEnabled);
   private syncing: Promise<void> = Promise.resolve();
   private pendingSync?: { key: string; promise: Promise<void> };
   private registration?: { key: string; at: number };
@@ -74,14 +81,31 @@ export class PushNotifications {
   private started = false;
 
   constructor() {
-    if (this.supported && Notification.permission === 'granted' && window.localStorage.getItem(ENABLED_KEY) === null) {
+    // Web 通道依赖浏览器 Notification；桌面壳没有它，走下面的原生分支
+    if (
+      !isTauri() &&
+      this.supported &&
+      Notification.permission === 'granted' &&
+      window.localStorage.getItem(ENABLED_KEY) === null
+    ) {
       this.setDeviceEnabled(true);
     }
-    // 桌面壳：SW 推送不可用，但 Web Notification 可用；登录后自动开通知开关并请求权限
-    if (isTauri() && 'Notification' in window) {
+    // 桌面壳默认开启通知：首次进入即打开开关并申请系统权限（用户可在设置页关闭）
+    if (isTauri()) {
       if (window.localStorage.getItem(ENABLED_KEY) === null) this.setDeviceEnabled(true);
-      if (Notification.permission === 'default') void Notification.requestPermission();
+      void desktopPermission().then((permission) => {
+        this.permissionState.set(permission);
+        if (permission !== 'granted') void this.requestDesktopPermission();
+      });
     }
+  }
+
+  /** 桌面壳权限申请：走原生插件，并同步开关状态与上游 UI 一致。 */
+  private async requestDesktopPermission() {
+    const permission = await desktopRequestPermission();
+    this.permissionState.set(permission);
+    if (permission === 'granted') this.setDeviceEnabled(true);
+    else this.setDeviceEnabled(false);
   }
 
   start() {
@@ -262,21 +286,17 @@ export class PushNotifications {
       String(message.sender.uid);
     const text = notificationText(message, (key) => this.transloco.translate(key));
     this.remember(message.id);
-    // 桌面壳无 Service Worker：直接用 Web Notification API（WebView2 映射为系统 toast）
+    // 桌面壳：原生通知插件发送系统 toast，不经 ServiceWorker
     if (isTauri()) {
       const suppress =
         !document.hidden &&
         this.currentConversation(message) &&
         (!modal || (!!modal.classList?.contains('route-panel') && this.panels.sidebar()));
-      if (!suppress) {
-        try {
-          new Notification(title, {
-            body: chat?.kind === GroupKind.dm ? text : `${message.sender.name ?? message.sender.uid}: ${text}`,
-          });
-        } catch (error) {
-          console.warn('[notify] desktop notification failed:', error);
-        }
-      }
+      if (!suppress)
+        void desktopNotify(
+          title,
+          chat?.kind === GroupKind.dm ? text : `${message.sender.name ?? message.sender.uid}: ${text}`,
+        ).catch(() => {});
       return;
     }
     await this.workerCommand({
@@ -320,6 +340,14 @@ export class PushNotifications {
   async refresh(): Promise<void> {
     if (this.busy() || !this.supported) return;
     this.failure.set(undefined);
+    if (isTauri()) {
+      this.permissionState.set(await desktopPermission());
+      const preference = window.localStorage.getItem(ENABLED_KEY);
+      if (preference === null) return;
+      this.enabledState.set(preference === 'true');
+      if (this.enabled() && this.permission() !== 'granted') this.setDeviceEnabled(false);
+      return;
+    }
     this.permissionState.set(Notification.permission);
     const preference = window.localStorage.getItem(ENABLED_KEY);
     if (preference === null) return;
@@ -334,7 +362,32 @@ export class PushNotifications {
   }
 
   shouldPrompt(): boolean {
+    // 桌面壳默认开启通知，不弹「是否允许」引导（构造时已开开关并申请系统权限）
+    if (isTauri()) return false;
     return this.supported && window.localStorage.getItem(ENABLED_KEY) === null;
+  }
+
+  /** 测试通知：绕开会话与免打扰判定，直接发一条系统通知，供用户验证权限是否生效。 */
+  async testNotify(title: string, body: string): Promise<boolean> {
+    if (this.permission() !== 'granted') {
+      if (isTauri()) await this.requestDesktopPermission();
+      if (this.permission() !== 'granted') {
+        this.failure.set(PushNotificationError.PermissionDenied);
+        return false;
+      }
+    }
+    this.failure.set(undefined);
+    if (isTauri()) {
+      await desktopNotify(title, body).catch(() => this.failure.set(PushNotificationError.SubscribeFailed));
+      return !this.error();
+    }
+    try {
+      new Notification(title, { body });
+      return true;
+    } catch {
+      this.failure.set(PushNotificationError.SubscribeFailed);
+      return false;
+    }
   }
 
   declinePermission(): void {
@@ -352,6 +405,12 @@ export class PushNotifications {
     }
     this.working.set(true);
     try {
+      if (isTauri()) {
+        // 桌面壳无 SW 订阅通道：只处理系统权限与本机开关
+        if (enabled) await this.requestDesktopPermission();
+        else this.setDeviceEnabled(false);
+        return this.enabled();
+      }
       if (enabled) {
         const permission =
           Notification.permission === 'default' ? await Notification.requestPermission() : Notification.permission;
