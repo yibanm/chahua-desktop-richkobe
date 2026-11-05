@@ -35,3 +35,7 @@ window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
 
 // 动态 import 不提升，保证上面的替换先于 ./main 的模块求值完成。
 await import('./main');
+
+// 连接预热：官方 API 在 Cloudflare 后，冷启动首次 TLS+CF 握手是登录慢的主因之一。
+// 启动即发一次预期 401 的请求暖连接池，fire-and-forget，失败无副作用。
+void tauriFetch('https://chahui.app/_api/users/me', { method: 'GET' }).catch(() => {});

@@ -52,7 +52,7 @@
       "pasteInvalid": "Invalid input: it must be a link with a token, or a JWT",
       "manualLogin": "Manual sign-in",
       "oneClick": "One-click sign-in",
-      "pwaFound": "Found the saved Chahua sign-in from your browser. Signing in automatically...",
+      "pwaFound": "Found the saved Chahua sign-in from your browser. Signing in automatically (within 5 seconds; guidance appears on failure)...",
       "pwaMissing": "No saved Chahua sign-in found in your browser. Open Chahua web in Edge and sign in once, or export cookies with the CookieXport extension, copy the JWT, and paste it via manual sign-in.",
       "scanning": "Reading saved browser sign-in..."
     },

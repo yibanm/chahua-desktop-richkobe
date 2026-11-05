@@ -69,6 +69,9 @@ export class Settings {
 
   protected logout() {
     this.session.logout();
+    // 设置页是浮层：只清 token 会留下浮层让用户再点一次「完成」，
+    // 故同批关闭浮层，未登录态模板自动渲染入口屏
+    void this.panels.close();
   }
   protected readonly updates = inject(AppUpdates);
   protected readonly UpdateResult = UpdateCheckResult;

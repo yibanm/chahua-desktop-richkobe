@@ -53,6 +53,10 @@
               </ion-button>
               @if (pwaJwtFound()) {
                 <p class="entry-paste-hint entry-paste-hint--ok">{{ 'app.entry.pwaFound' | transloco }}</p>
+                <div class="entry-progress">
+                  <ion-progress-bar [value]="loginProgress()" />
+                  <span class="entry-progress-pct">{{ (loginProgress() * 100) | number: '1.0-0' }}%</span>
+                </div>
               }
               @if (pwaJwtMissing()) {
                 <p class="entry-paste-hint">{{ 'app.entry.pwaMissing' | transloco }}</p>

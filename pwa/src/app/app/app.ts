@@ -1,4 +1,4 @@
-import { DOCUMENT, NgOptimizedImage } from '@angular/common';
+import { DecimalPipe, DOCUMENT, NgOptimizedImage } from '@angular/common';
 import {
   afterRenderEffect,
   Component,
@@ -18,6 +18,7 @@ import {
   IonContent,
   IonInput,
   IonMenu,
+  IonProgressBar,
   IonRouterOutlet,
   IonSpinner,
   IonSplitPane,
@@ -58,6 +59,7 @@ enum EntryState {
     '(document:keydown)': 'escapeKey($event)',
   },
   imports: [
+    DecimalPipe,
     NgOptimizedImage,
     ContentScrollbars,
     IonApp,
@@ -65,6 +67,7 @@ enum EntryState {
     IonContent,
     IonInput,
     IonMenu,
+    IonProgressBar,
     IonRouterOutlet,
     IonSpinner,
     IonSplitPane,
@@ -122,12 +125,15 @@ export class App {
   protected readonly pwaJwtFound = signal(false);
   // 识别失败时的引导提示（CookieXport 导出流程）
   protected readonly pwaJwtMissing = signal(false);
+  // 登录进度（0-1）：扫描 8→35，验证连接 60，进入 100；失败归零
+  protected readonly loginProgress = signal(0);
   // 扫描进行中标记：按钮禁用 + 文案变化，避免用户以为卡死连点
   protected readonly pwaScanning = signal(false);
   // 识别失败的具体原因（扫描异常 / 候选全部验活失败），透出便于排障
   protected readonly pwaScanError = signal('');
   @ViewChild('tokenInput') protected readonly tokenInput?: IonInput;
   private initializationEpoch = 0;
+  private slowAutoRetried = false;
   private slowTimer?: ReturnType<typeof setTimeout>;
   protected readonly updates = inject(AppUpdates);
   protected readonly updateReady = translateSignal('app.updateReady');
@@ -191,7 +197,19 @@ export class App {
     this.loading.set(true);
     this.slow.set(false);
     this.error.set(undefined);
-    this.slowTimer = setTimeout(() => this.slow.set(true), 10000);
+    this.slowTimer = setTimeout(() => {
+      this.slow.set(true);
+      // 桌面壳：Slow 态自动重试一次初始化，免去用户手动点「刷新」（官方 web 版
+      // 的 SW 更新 reload 在壳内已禁用，此处的慢来自冷连接/初始化，重试可自愈）。
+      // 必须先作废卡住的第一次初始化（epoch++ 且 loading 复位），否则 initialize
+      // 的 `if (this.loading()) return` 守卫会把重试直接挡掉。
+      if (isTauri() && !this.slowAutoRetried) {
+        this.slowAutoRetried = true;
+        this.initializationEpoch++;
+        this.loading.set(false);
+        void this.initialize();
+      }
+    }, 10000);
     try {
       await this.session.initialize();
       if (epoch === this.initializationEpoch && this.session.user()) this.notifications.start();
@@ -225,17 +243,20 @@ export class App {
     this.pwaJwtFound.set(false);
     this.pwaScanError.set('');
     this.pwaScanning.set(true);
+    this.loginProgress.set(0.08);
     let candidates: string[] = [];
     try {
       candidates = await readPwaJwt();
     } catch (error) {
       this.pwaScanning.set(false);
+      this.loginProgress.set(0);
       this.pwaScanError.set(error instanceof Error ? error.message : String(error));
       this.pwaJwtMissing.set(true);
       return;
     }
     this.pwaScanning.set(false);
     if (!candidates.length) {
+      this.loginProgress.set(0);
       this.pwaJwtMissing.set(true);
       return;
     }
@@ -244,8 +265,10 @@ export class App {
       .map((token) => ({ token, iat: jwtIssuedAt(token) }))
       .sort((a, b) => b.iat - a.iat);
     this.pwaJwtFound.set(true);
+    this.loginProgress.set(0.35);
     for (const { token } of sorted) {
       this.session.adoptToken(token);
+      this.loginProgress.set(0.6);
       try {
         // 登录限时 5 秒（用户要求）：超时按失败处理，给出导出引导而非无限转圈
         await Promise.race([
@@ -255,6 +278,7 @@ export class App {
           ),
         ]);
         if (this.session.user()) {
+          this.loginProgress.set(1);
           // 登录成功统一落聊天列表：入口链接可能带邀请路径，用户要求不弹群
           void this.router.navigateByUrl('/chats');
           return;
@@ -263,6 +287,7 @@ export class App {
         // 该候选已失效（吊销/过期/超时），继续试下一个
       }
     }
+    this.loginProgress.set(0);
     this.pwaJwtFound.set(false);
     this.pwaScanError.set('stored-token-rejected');
     this.pwaJwtMissing.set(true);

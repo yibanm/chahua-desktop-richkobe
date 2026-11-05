@@ -60,6 +60,27 @@ ion-split-pane {
   color: var(--ion-color-success);
 }
 
+// 登录进度：条与百分数同一行，宽度跟随容器（与按钮同宽），不另起布局
+.entry-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 0;
+
+  ion-progress-bar {
+    flex: 1;
+  }
+}
+
+.entry-progress-pct {
+  flex: none;
+  width: 3.2em;
+  text-align: right;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  font-variant-numeric: tabular-nums;
+}
+
 // ion-input 的 outline fill 需要显式给容器描边，否则在深色主题下不可见
 .entry-paste-input {
   --background: var(--ion-color-step-50, #ffffff);
