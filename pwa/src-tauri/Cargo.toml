@@ -35,6 +35,8 @@ tauri-plugin-window-state = "2"
 tauri-plugin-single-instance = "2"
 # 官方通知插件：WebView2 无 Web Notification API，消息提醒必须走原生通道
 tauri-plugin-notification = "2"
+# 官方 opener 插件：聊天内链接与论坛头像页需交给系统默认浏览器（壳内 target=_blank 无出口）
+tauri-plugin-opener = "2"
 # 授权窗口解析入口链接的 query 参数
 url = "2"
 

@@ -23,6 +23,7 @@ import {
   languageOutline,
   logOutOutline,
   notificationsOutline,
+  personCircleOutline,
   refreshOutline,
 } from 'ionicons/icons';
 import { ChatAvatar } from '../../chats/chat-avatar/chat-avatar';
@@ -30,9 +31,12 @@ import { PanelNavigation } from '../../navigation/panel-navigation';
 import { AppUpdates, UpdateCheckResult } from '../../pwa/app-updates';
 import { ContentScrollbars } from '../../scrolling/content-scrollbars';
 import { devBackendEnabled, SessionStore } from '../../session/session-store';
-import { isTauri } from '../../tauri/tauri-runtime';
+import { isTauri, openExternalUrl } from '../../tauri/tauri-runtime';
 import { localeLabels } from '../locale';
 import { Preferences } from '../preferences';
+
+// 论坛（Discuz）头像设置页：后端无用户头像写接口，头像由论坛侧维护
+const AVATAR_PAGE_URL = 'https://www.shireyishunjian.com/main/home.php?mod=spacecp&ac=avatar';
 
 @Component({
   selector: 'app-settings',
@@ -66,12 +70,27 @@ export class Settings {
   // 桌面壳专属：设置页提供退出登录入口（Web 版靠清浏览器数据退出，壳内没有该途径）
   protected readonly isDesktopShell = isTauri();
   protected readonly logOutOutline = logOutOutline;
+  protected readonly personCircleOutline = personCircleOutline;
+
+  /** 论坛头像设置页：壳内 WebView 打不开（无论坛登录态 + 该域直连被 DNS 污染），交系统浏览器。 */
+  protected openAvatarPage() {
+    void openExternalUrl(AVATAR_PAGE_URL).catch(() => {});
+  }
 
   protected logout() {
     this.session.logout();
     // 设置页是浮层：只清 token 会留下浮层让用户再点一次「完成」，
     // 故同批关闭浮层，未登录态模板自动渲染入口屏
     void this.panels.close();
+  }
+
+  /**
+   * 「立即更新」：桌面壳无 SW 热更新，reload 只会白刷新一次，
+   * 故壳内改为用系统浏览器打开 Release 页下载安装包覆盖安装。
+   */
+  protected updateNow() {
+    if (this.isDesktopShell) this.updates.openDesktopRelease();
+    else void this.updates.reload();
   }
   protected readonly updates = inject(AppUpdates);
   protected readonly UpdateResult = UpdateCheckResult;

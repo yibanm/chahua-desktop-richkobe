@@ -166,6 +166,13 @@ jobs:
         run: |
           tag="${GITHUB_REF_NAME}"
           ver="${tag#v}"
+          # 发版前校验 version.json 与 tag 一致：更新检查靠仓库里的 version.json，
+          # 若忘记同步，老客户端永远检测不到新版（更新闭环静默断裂）。不一致直接 fail。
+          manifest_ver=$(node -e 'console.log(require("../version.json").version)')
+          if [ "$manifest_ver" != "$ver" ]; then
+            echo "::error::version.json 的 version ($manifest_ver) 与 tag ($ver) 不一致，拒绝发布。请同步 version.json 后重新打 tag。"
+            exit 1
+          fi
           awk -v ver="$ver" '
             BEGIN { p = 0 }
             $0 ~ "^## v" ver "([[:space:]]|$)" { p = 1; next }

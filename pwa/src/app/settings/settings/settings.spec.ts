@@ -50,7 +50,7 @@ describe('Settings', () => {
   };
   let updates: {
     supported: boolean;
-    version: string;
+    version: WritableSignal<string>;
     checking: WritableSignal<boolean>;
     available: WritableSignal<boolean>;
     check: Mock;
@@ -77,7 +77,7 @@ describe('Settings', () => {
     };
     updates = {
       supported: true,
-      version: 'PWA2-1234',
+      version: signal('PWA2-1234'),
       checking: signal(false),
       available: signal(false),
       check: vi.fn().mockResolvedValue(UpdateCheckResult.Current),

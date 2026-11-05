@@ -1,17 +1,21 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "茶话 Tauri 客户端权限：核心 + 官方 HTTP 插件（限定官方 API 域）+ 窗口状态。登录态读取走 Rust 侧只读文件扫描，无需额外权限。",
+  "description": "茶话 Tauri 客户端权限：核心 + 官方 HTTP 插件（限定官方 API 与更新检查通道）+ 窗口状态 + 通知 + opener（外链交系统浏览器）。登录态读取走 Rust 侧只读文件扫描，无需额外权限。",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "window-state:default",
     "notification:default",
+    "opener:default",
     {
       "identifier": "http:default",
       "allow": [
         { "url": "https://chahui.app/*" },
-        { "url": "https://chahua.app/*" }
+        { "url": "https://chahua.app/*" },
+        { "url": "https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/*" },
+        { "url": "https://ghfast.top/https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/*" },
+        { "url": "https://ghproxy.net/https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/*" }
       ]
     }
   ]

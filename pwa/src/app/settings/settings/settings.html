@@ -34,6 +34,12 @@
   </ion-list>
   @if (isDesktopShell) {
     <ion-list [inset]="true">
+      <!-- 头像存在论坛（Discuz）侧，后端无写接口；该域直连被 DNS 污染，
+           故交给系统浏览器打开——用户浏览器里有论坛登录态与代理，改完下次拉取即生效 -->
+      <ion-item [button]="true" [detail]="false" lines="none" (click)="openAvatarPage()">
+        <ion-icon slot="start" [icon]="personCircleOutline" color="primary"></ion-icon>
+        <ion-label>{{ 'settings.menu.changeAvatar' | transloco }}</ion-label>
+      </ion-item>
       <ion-item [button]="true" [detail]="false" lines="none" (click)="logout()">
         <ion-icon slot="start" [icon]="logOutOutline" color="danger"></ion-icon>
         <ion-label color="danger">{{ 'settings.menu.logout' | transloco }}</ion-label>
@@ -52,7 +58,7 @@
       @if (updates.checking()) {
         <ion-spinner slot="end"></ion-spinner>
       } @else if (updates.available()) {
-        <ion-button slot="end" fill="clear" (click)="$event.stopPropagation(); updates.reload()">
+        <ion-button slot="end" fill="clear" (click)="$event.stopPropagation(); updateNow()">
           {{ 'settings.menu.updateNow' | transloco }}
         </ion-button>
       } @else {
@@ -65,7 +71,7 @@
               {{ 'settings.menu.updateCheckFailed' | transloco }}
             }
             @default {
-              {{ updates.version }}
+              {{ updates.version() }}
             }
           }
         </ion-note>

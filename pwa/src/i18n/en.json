@@ -54,7 +54,15 @@
       "oneClick": "One-click sign-in",
       "pwaFound": "Found the saved Chahua sign-in from your browser. Signing in automatically (within 5 seconds; guidance appears on failure)...",
       "pwaMissing": "No saved Chahua sign-in found in your browser. Open Chahua web in Edge and sign in once, or export cookies with the CookieXport extension, copy the JWT, and paste it via manual sign-in.",
-      "scanning": "Reading saved browser sign-in..."
+      "scanning": "Reading saved browser sign-in...",
+      "passwordLogin": "Sign in with account",
+      "passwordHint": "Sign in with your forum account (same as the Android app)",
+      "passwordUsername": "Forum username",
+      "passwordField": "Password",
+      "passwordSubmit": "Sign in",
+      "passwordEmpty": "Enter both username and password",
+      "passwordWrong": "Incorrect username or password",
+      "passwordFailed": "Sign-in failed. Check your connection and try again"
     },
     "updatePendingMessages": "You have unsent messages. Updating will discard these tasks.",
     "updateAnyway": "Update anyway"
@@ -130,7 +138,8 @@
       "notificationBlockedHelp": "Notifications are blocked. Allow notifications in your browser’s site settings, then return here.",
       "notificationWorkerUnavailable": "Notification service is unavailable. Please retry.",
       "notificationDisableFailed": "Could not disable background push. Please retry.",
-      "logout": "Sign out"
+      "logout": "Sign out",
+      "changeAvatar": "Change avatar"
     },
     "general": {
       "title": "Chat settings",

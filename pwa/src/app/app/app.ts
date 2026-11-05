@@ -31,7 +31,7 @@ import { filter, map, TimeoutError } from 'rxjs';
 import { ChatLink } from '../chats/chat-link/chat-link';
 import { ChatList } from '../chats/chat-list/chat-list';
 import { listSelection, ListTab, type ListSelection } from '../chats/list-tabs';
-import { isTauri, readPwaJwt } from '../tauri/tauri-runtime';
+import { isTauri, readPwaJwt, loginWithCredentials, DesktopLoginError } from '../tauri/tauri-runtime';
 import { PanelNavigation } from '../navigation/panel-navigation';
 import { AppUpdates } from '../pwa/app-updates';
 import { NotificationPrompt } from '../pwa/notification-prompt/notification-prompt';
@@ -131,7 +131,14 @@ export class App {
   protected readonly pwaScanning = signal(false);
   // 识别失败的具体原因（扫描异常 / 候选全部验活失败），透出便于排障
   protected readonly pwaScanError = signal('');
+  // 账号密码登录（论坛账号，与安卓端同一接口）：展开式表单，不占主按钮位
+  protected readonly showPasswordBox = signal(false);
+  protected readonly passwordUsername = signal('');
+  protected readonly passwordValue = signal('');
+  protected readonly passwordError = signal('');
+  protected readonly passwordBusy = signal(false);
   @ViewChild('tokenInput') protected readonly tokenInput?: IonInput;
+  @ViewChild('passwordInput') protected readonly passwordInput?: IonInput;
   private initializationEpoch = 0;
   private slowAutoRetried = false;
   private slowTimer?: ReturnType<typeof setTimeout>;
@@ -295,10 +302,61 @@ export class App {
 
   /** 手动登录：展开令牌输入框并聚焦，供粘贴 CookieXport 导出的 JWT 或入口链接。 */
   protected manualLogin() {
+    this.showPasswordBox.set(false);
     this.showPasteBox.set(true);
     this.entryLinkInvalid.set(false);
     // 等一帧让输入框渲染完成再聚焦
     setTimeout(() => void this.tokenInput?.setFocus(), 0);
+  }
+
+  /** 账号密码登录：展开表单并聚焦用户名框。论坛账号，与安卓端同一接口。 */
+  protected passwordLogin() {
+    this.showPasteBox.set(false);
+    this.passwordError.set('');
+    this.showPasswordBox.set(true);
+    setTimeout(() => void this.passwordInput?.setFocus(), 0);
+  }
+
+  /**
+   * 提交账号密码：换取 JWT 后复用既有采纳与初始化流程，落聊天列表。
+   * 密码只存在组件信号里，提交后即清空，不落 localStorage、不进日志。
+   */
+  protected async submitPasswordLogin() {
+    if (this.passwordBusy()) return;
+    const username = this.passwordUsername().trim();
+    const password = this.passwordValue();
+    if (!username || !password) {
+      this.passwordError.set('empty');
+      return;
+    }
+    this.passwordBusy.set(true);
+    this.passwordError.set('');
+    this.loginProgress.set(0.35);
+    try {
+      const token = await loginWithCredentials(username, password);
+      this.passwordValue.set('');
+      this.session.adoptToken(token);
+      this.loginProgress.set(0.6);
+      await Promise.race([
+        this.initialize(),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('login-timeout-5s')), 5000)),
+      ]);
+      if (this.session.user()) {
+        this.loginProgress.set(1);
+        void this.router.navigateByUrl('/chats');
+        return;
+      }
+      this.loginProgress.set(0);
+      this.passwordError.set('failed');
+    } catch (error) {
+      this.passwordValue.set('');
+      this.loginProgress.set(0);
+      this.passwordError.set(
+        error instanceof DesktopLoginError && [401, 403].includes(error.status) ? 'credentials' : 'failed',
+      );
+    } finally {
+      this.passwordBusy.set(false);
+    }
   }
 
   /**

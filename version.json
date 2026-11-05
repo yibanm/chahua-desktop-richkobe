@@ -1,0 +1,10 @@
+{
+  "version": "1.1.0",
+  "releaseDate": "2026-11-06",
+  "releaseUrl": "https://github.com/yibanm/chahua-desktop-richkobe/releases/tag/v1.1.0",
+  "notes": "新增：聊天链接可用系统浏览器打开、账号密码登录、检查更新、更换头像。",
+  "assets": {
+    "setup": "chahua-tauri-1.1.0-windows-x64-setup.exe",
+    "portable": "chahua-tauri-1.1.0-windows-x64-portable.zip"
+  }
+}

@@ -7,6 +7,7 @@ import { TranslocoService } from '@jsverse/transloco';
 import { MessageOutbox } from '../messages/message-outbox';
 import { MessageDelivery } from '../messages/message-delivery';
 import { appVersion } from '../app-version';
+import { desktopAppVersion, fetchDesktopUpdateInfo, isTauri, openExternalUrl } from '../tauri/tauri-runtime';
 
 export enum UpdateCheckResult {
   Updated = 'updated',
@@ -30,17 +31,23 @@ export class AppUpdates {
   private readonly latestVersion = signal(window.chahuaUpdates?.latestVersion);
   private readonly dismissedVersion = signal<string | undefined>(undefined);
   private readonly interactive = signal(false);
+  // 桌面壳没有 SW：更新信息来自仓库里的 version.json，新版本号与下载地址存这里
+  private readonly desktopUpdate = signal<{ version: string; releaseUrl: string } | undefined>(undefined);
   private pendingCheck?: Promise<UpdateCheckResult>;
   private download?: { hash: string; ready: ReplaySubject<boolean> };
-  readonly supported = inject(APP_UPDATES_ENABLED) && this.updates.isEnabled;
-  readonly version = appVersion;
+  readonly supported = inject(APP_UPDATES_ENABLED) && (isTauri() || this.updates.isEnabled);
+  // 桌面壳构建期没有注入 CHAHUA_APP_VERSION（appVersion 是占位串 PWA2-dev），
+  // 故版本号改由 Tauri 运行时读取，与 tauri.conf.json 同源，避免两处版本号漂移。
+  private readonly versionState = signal(appVersion);
+  readonly version = this.versionState.asReadonly();
   readonly checking = this.checkingState.asReadonly();
-  readonly available = computed(() => this.availableState() || !!this.latestVersion());
+  readonly available = computed(() => this.availableState() || !!this.latestVersion() || !!this.desktopUpdate());
   readonly promptOpen = computed(
     () => this.interactive() && !!this.latestVersion() && this.latestVersion() !== this.dismissedVersion(),
   );
 
   constructor() {
+    if (isTauri()) void desktopAppVersion().then((v) => v && this.versionState.set(v));
     this.updates.versionUpdates.pipe(takeUntilDestroyed()).subscribe((event) => {
       if (event.type === 'VERSION_DETECTED' && event.version.hash !== this.download?.hash) {
         this.download?.ready.next(false);
@@ -67,12 +74,36 @@ export class AppUpdates {
     if (!this.supported) return Promise.resolve(UpdateCheckResult.Unavailable);
     if (this.pendingCheck) return this.pendingCheck;
     this.checkingState.set(true);
-    this.pendingCheck = this.checkForUpdate().finally(() => {
+    this.pendingCheck = (isTauri() ? this.checkDesktopUpdate() : this.checkForUpdate()).finally(() => {
       this.checkingState.set(false);
       this.pendingCheck = undefined;
     });
     return this.pendingCheck;
   }
+
+  /**
+   * 桌面壳更新检查：读仓库里的 version.json 比版本号，有新版就记下 Release 页地址。
+   * 为什么不用 GitHub API：镜像不能代理 api.github.com（实测 ghfast/ghproxy 均 403，仅直连 200），
+   * 而 raw 文件走镜像可达（实测 200），故版本信息放仓库文件、下载走镜像。
+   */
+  private async checkDesktopUpdate(): Promise<UpdateCheckResult> {
+    this.desktopUpdate.set(undefined);
+    try {
+      const info = await fetchDesktopUpdateInfo(this.version());
+      if (!info) return UpdateCheckResult.Current;
+      this.desktopUpdate.set(info);
+      return UpdateCheckResult.Updated;
+    } catch {
+      return UpdateCheckResult.Failed;
+    }
+  }
+
+  /** 桌面壳「立即更新」：用系统浏览器打开 Release 页下载安装包（壳内不能自替换 exe）。 */
+  readonly openDesktopRelease = () => {
+    const url = this.desktopUpdate()?.releaseUrl;
+    if (!url) return;
+    void openExternalUrl(url).catch(() => {});
+  };
 
   readonly reload = async () => {
     if (this.confirmingReload) return;
