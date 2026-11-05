@@ -46,16 +46,14 @@
         "title": "应用加载遇到问题",
         "description": ""
       },
-      "pasteHint": "粘贴带登录令牌的入口链接、裸令牌，或论坛发布帖地址",
+      "pasteHint": "粘贴带登录令牌的入口链接或令牌",
       "pastePlaceholder": "粘贴论坛发布帖地址，或带 token 的入口链接 / 令牌",
-      "pasteSubmit": "进入",
+      "pasteSubmit": "登录",
       "pasteInvalid": "内容无效：需要是 https 链接或带 token 的入口链接 / 令牌",
-      "pasteAuth": "授权登录",
-      "quickLogin": "快捷登录",
-      "browserAuth": "浏览器授权登录",
-      "awaitingHint": "已在浏览器打开授权页。完成授权后复制入口链接，回到本窗口将自动登录。",
-      "fallbackWindow": "改用应用内授权窗口",
-      "togglePaste": "手动粘贴链接 / 令牌"
+      "awaitingHint": "已在浏览器打开茶话。完成登录后复制地址栏里带 token 的链接，回到本窗口将自动登录；也可点「手动登录」直接粘贴该链接或令牌。",
+      "browserLogin": "浏览器登录",
+      "manualLogin": "手动登录",
+      "openFailed": "无法打开默认浏览器：请改用下方应用内授权窗口或手动粘贴"
     },
     "updatePendingMessages": "仍有未发送的消息，更新将丢失这些任务。",
     "updateAnyway": "仍然更新"

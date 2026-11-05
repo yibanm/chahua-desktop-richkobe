@@ -43,22 +43,21 @@
           @if (showDesktopLogin && needsLogin() && !loading()) {
             <div class="entry-paste">
               <ion-button class="entry-paste-button" expand="block" (click)="browserAuth()">
-                {{ 'app.entry.browserAuth' | transloco }}
+                {{ 'app.entry.browserLogin' | transloco }}
               </ion-button>
-              <ion-button class="entry-paste-button" expand="block" fill="outline" (click)="quickLogin()">
-                {{ 'app.entry.quickLogin' | transloco }}
+              <ion-button class="entry-paste-button" expand="block" fill="outline" (click)="manualLogin()">
+                {{ 'app.entry.manualLogin' | transloco }}
               </ion-button>
               @if (awaitingBrowserAuth()) {
                 <p class="entry-paste-hint">{{ 'app.entry.awaitingHint' | transloco }}</p>
               }
-              <p class="entry-paste-link">
-                <a (click)="fallbackAuthWindow()">{{ 'app.entry.fallbackWindow' | transloco }}</a>
-                ·
-                <a (click)="showPasteBox.set(!showPasteBox())">{{ 'app.entry.togglePaste' | transloco }}</a>
-              </p>
+              @if (browserOpenFailed()) {
+                <p class="entry-paste-error">{{ 'app.entry.openFailed' | transloco }}{{ browserOpenError() ? '（' + browserOpenError() + '）' : '' }}</p>
+              }
               @if (showPasteBox()) {
                 <p class="entry-paste-hint">{{ 'app.entry.pasteHint' | transloco }}</p>
                 <ion-input
+                  #tokenInput
                   class="entry-paste-input"
                   fill="outline"
                   [value]="entryLink()"
@@ -70,6 +69,9 @@
                 @if (entryLinkInvalid()) {
                   <p class="entry-paste-error">{{ 'app.entry.pasteInvalid' | transloco }}</p>
                 }
+                <ion-button class="entry-paste-button" expand="block" (click)="submitEntryLink()">
+                  {{ 'app.entry.pasteSubmit' | transloco }}
+                </ion-button>
               }
             </div>
           }

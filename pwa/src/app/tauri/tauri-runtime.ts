@@ -19,14 +19,6 @@ export async function openExternalUrl(url: string): Promise<void> {
   await openUrl(url);
 }
 
-/**
- * 打开应用内授权窗口（Rust 侧命令），作为浏览器路线的兜底。
- */
-export async function openAuthWindow(url: string): Promise<void> {
-  const { invoke } = await import('@tauri-apps/api/core');
-  await invoke('open_auth_window', { url });
-}
-
 /** 读取系统剪贴板文本（官方插件 clipboard-manager）。读取失败返回 undefined。 */
 export async function readClipboard(): Promise<string | undefined> {
   try {
@@ -35,12 +27,6 @@ export async function readClipboard(): Promise<string | undefined> {
   } catch {
     return undefined;
   }
-}
-
-/** 订阅授权窗口捕获到 token 的事件；返回取消订阅函数。 */
-export async function onAuthToken(callback: (token: string) => void): Promise<() => void> {
-  const { listen } = await import('@tauri-apps/api/event');
-  return listen<string>('auth-token', (event) => callback(event.payload));
 }
 
 /** 订阅主窗口重新获得焦点的事件；返回取消订阅函数。 */

@@ -8,6 +8,7 @@ import {
   isDevMode,
   linkedSignal,
   signal,
+  ViewChild,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
@@ -29,7 +30,7 @@ import { filter, map, TimeoutError } from 'rxjs';
 import { ChatLink } from '../chats/chat-link/chat-link';
 import { ChatList } from '../chats/chat-list/chat-list';
 import { listSelection, ListTab, type ListSelection } from '../chats/list-tabs';
-import { isTauri, onAuthToken, onWindowFocused, openAuthWindow, openExternalUrl, readClipboard } from '../tauri/tauri-runtime';
+import { isTauri, onWindowFocused, openExternalUrl, readClipboard } from '../tauri/tauri-runtime';
 import { PanelNavigation } from '../navigation/panel-navigation';
 import { AppUpdates } from '../pwa/app-updates';
 import { NotificationPrompt } from '../pwa/notification-prompt/notification-prompt';
@@ -38,8 +39,19 @@ import { ContentScrollbars } from '../scrolling/content-scrollbars';
 import { SessionStore } from '../session/session-store';
 import { RpcError, RpcErrorCode, RpcTransportError } from '../api/rpc-error';
 
-/** 记住上次成功授权的入口地址，供桌面壳「快捷登录」一键复用。 */
+/** 记住上次成功授权的入口地址，供桌面壳复用。 */
 const ENTRY_URL_KEY = 'chahua.desktop.entryUrl';
+
+/**
+ * 无记住地址时「浏览器登录」的默认目标：官方应用主入口。
+ * 授权入口链接由论坛侧签发（Discuz 共享密钥签 JWT 后重定向回 chahua.app），
+ * 桌面壳无法自建服务端授权入口；旧论坛域 shireyishunjian.com 已失效
+ * （DNS 指向无关 IP 段），新论坛地址未知，故默认跳应用主入口——
+ * 浏览器已有登录态时直达聊天页，无登录态时官方页面自带进入引导。
+ * 不指 chahua.app/landing：那是 PWA 安装引导页，与登录无关（用户明确拒绝 PWA 路线）。
+ * 用户粘贴过一次论坛帖地址后即被记住，之后「浏览器登录」直接跳该地址。
+ */
+const DEFAULT_ENTRY_URL = 'https://chahua.app/chats';
 
 enum EntryState {
   Loading = 'loading',
@@ -121,6 +133,10 @@ export class App {
   protected readonly entryLink = signal('');
   protected readonly entryLinkInvalid = signal(false);
   protected readonly awaitingBrowserAuth = signal(false);
+  protected readonly browserOpenFailed = signal(false);
+  // 打开浏览器失败时透出的具体错误文本：吞掉错误会让排障无从下手
+  protected readonly browserOpenError = signal('');
+  @ViewChild('tokenInput') protected readonly tokenInput?: IonInput;
   private clipboardPoll?: ReturnType<typeof setInterval>;
   private initializationEpoch = 0;
   private slowTimer?: ReturnType<typeof setTimeout>;
@@ -142,12 +158,6 @@ export class App {
     afterRenderEffect(() => this.updates.setInteractive(!this.landingPage() && !!this.session.user()));
     this.session.restoreToken();
     if (this.showDesktopLogin) {
-      // 兜底路线：应用内授权窗口捕获到 token 后自动采纳并初始化
-      void onAuthToken((token) => {
-        this.stopClipboardPoll();
-        this.session.adoptToken(token);
-        void this.initialize();
-      });
       // 主路线回流：从浏览器授权返回应用（窗口重新获焦）时检查剪贴板里的 token
       void onWindowFocused(() => {
         if (this.awaitingBrowserAuth()) void this.tryAdoptClipboardToken();
@@ -222,60 +232,46 @@ export class App {
   }
 
   /**
-   * 主登录路线：在系统默认浏览器打开入口地址，用户授权后 token 经剪贴板回流。
-   * 官方重定向硬编码回 chahua.app（浏览器地址栏），桌面应用无法直接接收，
-   * 故回流通道为：浏览器里复制入口链接（或授权页一键复制）→ 回到应用窗口 →
-   * 焦点回归或轮询读到剪贴板里的 token 即自动登录。凭证始终来自用户自己的账号。
+   * 浏览器登录：无条件跳系统默认浏览器。
+   * 有记住的入口地址则打开它；没有则打开官方落地页（用户可在浏览器内自行进入论坛帖），
+   * 授权完成后复制入口链接回到本窗口，剪贴板感知自动登录。
    */
   protected async browserAuth() {
-    const url = this.entryLink().trim() || localStorage.getItem(ENTRY_URL_KEY) || '';
-    if (!url) {
-      // 没有可用入口地址：展开粘贴框让用户提供一次
-      this.showPasteBox.set(true);
-      this.entryLinkInvalid.set(true);
-      return;
-    }
+    const remembered = this.entryLink().trim() || localStorage.getItem(ENTRY_URL_KEY);
+    const target = remembered || DEFAULT_ENTRY_URL;
     let parsed: URL;
     try {
-      parsed = new URL(url);
+      parsed = new URL(target);
     } catch {
-      this.showPasteBox.set(true);
-      this.entryLinkInvalid.set(true);
+      this.browserOpenFailed.set(true);
       return;
     }
     if (parsed.protocol !== 'https:') {
-      this.showPasteBox.set(true);
-      this.entryLinkInvalid.set(true);
+      this.browserOpenFailed.set(true);
       return;
     }
-    localStorage.setItem(ENTRY_URL_KEY, parsed.href);
+    if (remembered) localStorage.setItem(ENTRY_URL_KEY, parsed.href);
     this.entryLinkInvalid.set(false);
+    this.browserOpenFailed.set(false);
     this.awaitingBrowserAuth.set(true);
     this.startClipboardPoll();
     try {
       await openExternalUrl(parsed.href);
-    } catch {
+    } catch (error) {
       this.awaitingBrowserAuth.set(false);
       this.stopClipboardPoll();
-      this.entryLinkInvalid.set(true);
+      this.browserOpenFailed.set(true);
+      this.browserOpenError.set(error instanceof Error ? error.message : String(error));
+      console.error('[tauri] open browser failed:', error);
     }
   }
 
-  /** 兜底路线：应用内授权窗口（浏览器不可用或用户不想离开应用时）。 */
-  protected async fallbackAuthWindow() {
-    const url = this.entryLink().trim() || localStorage.getItem(ENTRY_URL_KEY);
-    if (!url) {
-      this.showPasteBox.set(true);
-      this.entryLinkInvalid.set(true);
-      return;
-    }
+  /** 手动登录：展开令牌输入框并聚焦，供粘贴入口链接 / 裸令牌。 */
+  protected manualLogin() {
+    this.showPasteBox.set(true);
     this.entryLinkInvalid.set(false);
-    localStorage.setItem(ENTRY_URL_KEY, url);
-    try {
-      await openAuthWindow(url);
-    } catch {
-      this.entryLinkInvalid.set(true);
-    }
+    // 等一帧让输入框渲染完成再聚焦
+    setTimeout(() => void this.tokenInput?.setFocus(), 0);
   }
 
   /** 轮询剪贴板：浏览器授权期间每 2 秒检查一次，最长 5 分钟。 */
@@ -340,15 +336,6 @@ export class App {
       return;
     }
     this.entryLinkInvalid.set(true);
-  }
-
-  /** 快捷登录：本地已有 token 直接绑定；否则走浏览器授权主路线。 */
-  protected quickLogin() {
-    if (this.session.token()) {
-      void this.initialize();
-      return;
-    }
-    void this.browserAuth();
   }
 }
 
