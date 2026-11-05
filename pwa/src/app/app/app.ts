@@ -30,7 +30,7 @@ import { filter, map, TimeoutError } from 'rxjs';
 import { ChatLink } from '../chats/chat-link/chat-link';
 import { ChatList } from '../chats/chat-list/chat-list';
 import { listSelection, ListTab, type ListSelection } from '../chats/list-tabs';
-import { isTauri, onWindowFocused, openExternalUrl, readClipboard } from '../tauri/tauri-runtime';
+import { isTauri, readPwaJwt } from '../tauri/tauri-runtime';
 import { PanelNavigation } from '../navigation/panel-navigation';
 import { AppUpdates } from '../pwa/app-updates';
 import { NotificationPrompt } from '../pwa/notification-prompt/notification-prompt';
@@ -38,20 +38,6 @@ import { PushNotifications } from '../pwa/push-notifications';
 import { ContentScrollbars } from '../scrolling/content-scrollbars';
 import { SessionStore } from '../session/session-store';
 import { RpcError, RpcErrorCode, RpcTransportError } from '../api/rpc-error';
-
-/** 记住上次成功授权的入口地址，供桌面壳复用。 */
-const ENTRY_URL_KEY = 'chahua.desktop.entryUrl';
-
-/**
- * 无记住地址时「浏览器登录」的默认目标：官方应用主入口。
- * 授权入口链接由论坛侧签发（Discuz 共享密钥签 JWT 后重定向回 chahua.app），
- * 桌面壳无法自建服务端授权入口；旧论坛域 shireyishunjian.com 已失效
- * （DNS 指向无关 IP 段），新论坛地址未知，故默认跳应用主入口——
- * 浏览器已有登录态时直达聊天页，无登录态时官方页面自带进入引导。
- * 不指 chahua.app/landing：那是 PWA 安装引导页，与登录无关（用户明确拒绝 PWA 路线）。
- * 用户粘贴过一次论坛帖地址后即被记住，之后「浏览器登录」直接跳该地址。
- */
-const DEFAULT_ENTRY_URL = 'https://chahua.app/chats';
 
 enum EntryState {
   Loading = 'loading',
@@ -126,18 +112,21 @@ export class App {
   );
   protected readonly needsLogin = computed(() => [EntryState.Missing, EntryState.Expired].includes(this.entryState()));
   protected readonly EntryState = EntryState;
-  // 桌面壳登录：主交互是「跳默认浏览器授权」，回流靠剪贴板感知 + 窗口焦点双触发；
-  // 应用内授权窗口降级为显式兜底链接；粘贴框折叠为次要入口。仅 Tauri 下显示。
+  // 桌面壳登录：主路线读浏览器 PWA 已保存的登录态（Chromium localStorage 明文 JWT），
+  // 命中即提示「已识别到 PWA 的登录信息，自动登录」；未命中引导用户用 CookieXport 导出后粘贴。
   protected readonly showDesktopLogin = isTauri();
   protected readonly showPasteBox = signal(false);
   protected readonly entryLink = signal('');
   protected readonly entryLinkInvalid = signal(false);
-  protected readonly awaitingBrowserAuth = signal(false);
-  protected readonly browserOpenFailed = signal(false);
-  // 打开浏览器失败时透出的具体错误文本：吞掉错误会让排障无从下手
-  protected readonly browserOpenError = signal('');
+  // 识别到浏览器登录态时的成功提示
+  protected readonly pwaJwtFound = signal(false);
+  // 识别失败时的引导提示（CookieXport 导出流程）
+  protected readonly pwaJwtMissing = signal(false);
+  // 扫描进行中标记：按钮禁用 + 文案变化，避免用户以为卡死连点
+  protected readonly pwaScanning = signal(false);
+  // 识别失败的具体原因（扫描异常 / 候选全部验活失败），透出便于排障
+  protected readonly pwaScanError = signal('');
   @ViewChild('tokenInput') protected readonly tokenInput?: IonInput;
-  private clipboardPoll?: ReturnType<typeof setInterval>;
   private initializationEpoch = 0;
   private slowTimer?: ReturnType<typeof setTimeout>;
   protected readonly updates = inject(AppUpdates);
@@ -157,13 +146,6 @@ export class App {
     });
     afterRenderEffect(() => this.updates.setInteractive(!this.landingPage() && !!this.session.user()));
     this.session.restoreToken();
-    if (this.showDesktopLogin) {
-      // 主路线回流：从浏览器授权返回应用（窗口重新获焦）时检查剪贴板里的 token
-      void onWindowFocused(() => {
-        if (this.awaitingBrowserAuth()) void this.tryAdoptClipboardToken();
-      });
-      inject(DestroyRef).onDestroy(() => this.stopClipboardPoll());
-    }
     if ((!this.session.token() && !isDevMode()) || (this.landingPage() && !isPlatform('pwa'))) {
       this.loading.set(false);
     } else {
@@ -232,41 +214,55 @@ export class App {
   }
 
   /**
-   * 浏览器登录：无条件跳系统默认浏览器。
-   * 有记住的入口地址则打开它；没有则打开官方落地页（用户可在浏览器内自行进入论坛帖），
-   * 授权完成后复制入口链接回到本窗口，剪贴板感知自动登录。
+   * 一键登录（唯一主路线）：读取浏览器 PWA 已保存的茶话登录态。
+   * Chromium 的 localStorage 不加密，JWT 明文存于 leveldb；Rust 侧只读扫描。
+   * 命中多个候选时按 JWT 的 iat 取最新，逐个验活后采纳并进入聊天列表；
+   * 全部未命中或验活失败则给出 CookieXport 导出引导（用户裁定的兜底）。
    */
-  protected async browserAuth() {
-    const remembered = this.entryLink().trim() || localStorage.getItem(ENTRY_URL_KEY);
-    const target = remembered || DEFAULT_ENTRY_URL;
-    let parsed: URL;
+  protected async oneClickLogin() {
+    if (this.pwaScanning()) return;
+    this.pwaJwtMissing.set(false);
+    this.pwaJwtFound.set(false);
+    this.pwaScanError.set('');
+    this.pwaScanning.set(true);
+    let candidates: string[] = [];
     try {
-      parsed = new URL(target);
-    } catch {
-      this.browserOpenFailed.set(true);
-      return;
-    }
-    if (parsed.protocol !== 'https:') {
-      this.browserOpenFailed.set(true);
-      return;
-    }
-    if (remembered) localStorage.setItem(ENTRY_URL_KEY, parsed.href);
-    this.entryLinkInvalid.set(false);
-    this.browserOpenFailed.set(false);
-    this.awaitingBrowserAuth.set(true);
-    this.startClipboardPoll();
-    try {
-      await openExternalUrl(parsed.href);
+      candidates = await readPwaJwt();
     } catch (error) {
-      this.awaitingBrowserAuth.set(false);
-      this.stopClipboardPoll();
-      this.browserOpenFailed.set(true);
-      this.browserOpenError.set(error instanceof Error ? error.message : String(error));
-      console.error('[tauri] open browser failed:', error);
+      this.pwaScanning.set(false);
+      this.pwaScanError.set(error instanceof Error ? error.message : String(error));
+      this.pwaJwtMissing.set(true);
+      return;
     }
+    this.pwaScanning.set(false);
+    if (!candidates.length) {
+      this.pwaJwtMissing.set(true);
+      return;
+    }
+    // 按 iat 从新到旧排序：leveldb 里可能残留历史版本 token
+    const sorted = candidates
+      .map((token) => ({ token, iat: jwtIssuedAt(token) }))
+      .sort((a, b) => b.iat - a.iat);
+    this.pwaJwtFound.set(true);
+    for (const { token } of sorted) {
+      this.session.adoptToken(token);
+      try {
+        await this.initialize();
+        if (this.session.user()) {
+          // 登录成功统一落聊天列表：入口链接可能带邀请路径，用户要求不弹群
+          void this.router.navigateByUrl('/chats');
+          return;
+        }
+      } catch {
+        // 该候选已失效（吊销/过期），继续试下一个
+      }
+    }
+    this.pwaJwtFound.set(false);
+    this.pwaScanError.set('stored-token-rejected');
+    this.pwaJwtMissing.set(true);
   }
 
-  /** 手动登录：展开令牌输入框并聚焦，供粘贴入口链接 / 裸令牌。 */
+  /** 手动登录：展开令牌输入框并聚焦，供粘贴 CookieXport 导出的 JWT 或入口链接。 */
   protected manualLogin() {
     this.showPasteBox.set(true);
     this.entryLinkInvalid.set(false);
@@ -274,42 +270,9 @@ export class App {
     setTimeout(() => void this.tokenInput?.setFocus(), 0);
   }
 
-  /** 轮询剪贴板：浏览器授权期间每 2 秒检查一次，最长 5 分钟。 */
-  private startClipboardPoll() {
-    this.stopClipboardPoll();
-    const deadline = Date.now() + 5 * 60_000;
-    this.clipboardPoll = setInterval(() => {
-      if (Date.now() > deadline) {
-        this.awaitingBrowserAuth.set(false);
-        this.stopClipboardPoll();
-        return;
-      }
-      void this.tryAdoptClipboardToken();
-    }, 2000);
-  }
-
-  private stopClipboardPoll() {
-    if (this.clipboardPoll) {
-      clearInterval(this.clipboardPoll);
-      this.clipboardPoll = undefined;
-    }
-  }
-
-  /** 从剪贴板文本提取 token 并采纳；提取不到则什么都不做（继续等待）。 */
-  protected async tryAdoptClipboardToken() {
-    const text = (await readClipboard())?.trim();
-    if (!text) return;
-    const token = extractToken(text);
-    if (!token) return;
-    this.stopClipboardPoll();
-    this.awaitingBrowserAuth.set(false);
-    this.session.adoptToken(token);
-    void this.initialize();
-  }
-
   /**
-   * 折叠粘贴框的提交：接受「带 token 的入口链接」「裸 JWT」「论坛帖地址」。
-   * 前两者直接采纳凭证；论坛帖地址记住后走浏览器授权主路线。
+   * 粘贴框提交：接受「带 token 的入口链接」或「裸 JWT」。
+   * 采纳后统一进入聊天列表，不弹群组邀请页。
    */
   protected submitEntryLink() {
     const raw = this.entryLink().trim();
@@ -318,24 +281,13 @@ export class App {
       return;
     }
     const token = extractToken(raw);
-    if (token) {
-      this.entryLinkInvalid.set(false);
-      this.session.adoptToken(token);
-      void this.initialize();
+    if (!token) {
+      this.entryLinkInvalid.set(true);
       return;
     }
-    let url: URL | undefined;
-    try {
-      url = new URL(raw, window.location.origin);
-    } catch {
-      url = undefined;
-    }
-    if (url && url.protocol === 'https:') {
-      this.entryLink.set(url.href);
-      void this.browserAuth();
-      return;
-    }
-    this.entryLinkInvalid.set(true);
+    this.entryLinkInvalid.set(false);
+    this.session.adoptToken(token);
+    void this.initialize().then(() => void this.router.navigateByUrl('/chats'));
   }
 }
 
@@ -350,4 +302,16 @@ function extractToken(raw: string): string | undefined {
   // 裸 JWT 形如 header.payload[.signature]，base64url 段以 eyJ 开头的是 header
   if (/^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/.test(raw)) return raw;
   return undefined;
+}
+
+/** 解 JWT payload 的 iat（秒）；解析失败返回 0，仅用于候选排序，不做校验。 */
+function jwtIssuedAt(token: string): number {
+  try {
+    const payload = token.split('.')[1];
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const iat = JSON.parse(json).iat;
+    return typeof iat === 'number' ? iat : 0;
+  } catch {
+    return 0;
+  }
 }

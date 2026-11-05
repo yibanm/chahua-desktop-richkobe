@@ -46,14 +46,15 @@
         "title": "Unable to load the app",
         "description": ""
       },
-      "pasteHint": "Paste an entry link with a sign-in token, or a bare token",
-      "pastePlaceholder": "Paste the forum post URL, or an entry link / token",
+      "pasteHint": "Paste a JWT token or an entry link with a token",
+      "pastePlaceholder": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiIs...",
       "pasteSubmit": "Sign in",
-      "pasteInvalid": "Invalid input: it must be an https link, or an entry link / token",
-      "awaitingHint": "Chahua is open in your browser. After signing in, copy the address-bar link containing the token and return here to sign in automatically; or use manual sign-in to paste it.",
-      "browserLogin": "Sign in via browser",
-      "manualLogin": "Sign in manually",
-      "openFailed": "Cannot open the default browser: use the in-app sign-in window below or paste manually"
+      "pasteInvalid": "Invalid input: it must be a link with a token, or a JWT",
+      "manualLogin": "Manual sign-in",
+      "oneClick": "One-click sign-in",
+      "pwaFound": "Found the saved Chahua sign-in from your browser. Signing in automatically...",
+      "pwaMissing": "No saved Chahua sign-in found in your browser. Open Chahua web in Edge and sign in once, or export cookies with the CookieXport extension, copy the JWT, and paste it via manual sign-in.",
+      "scanning": "Reading saved browser sign-in..."
     },
     "updatePendingMessages": "You have unsent messages. Updating will discard these tasks.",
     "updateAnyway": "Update anyway"
@@ -124,7 +125,8 @@
       "install": "Install app",
       "notificationBlockedHelp": "Notifications are blocked. Allow notifications in your browser’s site settings, then return here.",
       "notificationWorkerUnavailable": "Notification service is unavailable. Please retry.",
-      "notificationDisableFailed": "Could not disable background push. Please retry."
+      "notificationDisableFailed": "Could not disable background push. Please retry.",
+      "logout": "Sign out"
     },
     "general": {
       "title": "Chat settings",

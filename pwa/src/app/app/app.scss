@@ -56,6 +56,10 @@ ion-split-pane {
   margin: 0 0 8px;
 }
 
+.entry-paste-hint--ok {
+  color: var(--ion-color-success);
+}
+
 // ion-input 的 outline fill 需要显式给容器描边，否则在深色主题下不可见
 .entry-paste-input {
   --background: var(--ion-color-step-50, #ffffff);
@@ -76,6 +80,26 @@ ion-split-pane {
 
 .entry-paste-button {
   margin-top: 12px;
+}
+
+// 立体感：投影 + 按压反馈，避免默认扁平按钮"像没反应"
+.entry-paste-button--primary {
+  --box-shadow: 0 4px 14px rgb(0 0 0 / 35%);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 35%);
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.08s ease,
+    filter 0.08s ease;
+
+  &:active {
+    transform: translateY(1px) scale(0.985);
+    box-shadow: 0 2px 6px rgb(0 0 0 / 30%);
+    filter: brightness(0.92);
+  }
+
+  &:hover:not([disabled]) {
+    filter: brightness(1.06);
+  }
 }
 
 .entry-paste-link {

@@ -46,14 +46,15 @@
         "title": "应用加载遇到问题",
         "description": ""
       },
-      "pasteHint": "粘贴带登录令牌的入口链接或令牌",
-      "pastePlaceholder": "粘贴论坛发布帖地址，或带 token 的入口链接 / 令牌",
+      "pasteHint": "粘贴 JWT 令牌或带 token 的入口链接",
+      "pastePlaceholder": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiIs…",
       "pasteSubmit": "登录",
-      "pasteInvalid": "内容无效：需要是 https 链接或带 token 的入口链接 / 令牌",
-      "awaitingHint": "已在浏览器打开茶话。完成登录后复制地址栏里带 token 的链接，回到本窗口将自动登录；也可点「手动登录」直接粘贴该链接或令牌。",
-      "browserLogin": "浏览器登录",
+      "pasteInvalid": "内容无效：需要是带 token 的链接或 JWT 令牌",
       "manualLogin": "手动登录",
-      "openFailed": "无法打开默认浏览器：请改用下方应用内授权窗口或手动粘贴"
+      "oneClick": "一键登录",
+      "pwaFound": "已识别到浏览器里茶话网页版的登录信息，正在自动登录……",
+      "pwaMissing": "未识别到浏览器里的茶话登录信息。请先在 Edge 里打开茶话网页版登录一次；或用 CookieXport 扩展右键茶话网页导出 Cookie，复制其中的 JWT，点「手动登录」粘贴。",
+      "scanning": "正在识别浏览器登录信息……"
     },
     "updatePendingMessages": "仍有未发送的消息，更新将丢失这些任务。",
     "updateAnyway": "仍然更新"
@@ -124,7 +125,8 @@
       "install": "安装应用",
       "notificationBlockedHelp": "通知权限已被拒绝。请在浏览器的网站设置中允许通知，然后返回此页面。",
       "notificationWorkerUnavailable": "通知服务暂不可用，请重试。",
-      "notificationDisableFailed": "关闭后台推送失败，请重试。"
+      "notificationDisableFailed": "关闭后台推送失败，请重试。",
+      "logout": "退出登录"
     },
     "general": {
       "title": "聊天设置",

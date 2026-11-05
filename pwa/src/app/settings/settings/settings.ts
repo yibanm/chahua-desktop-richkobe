@@ -21,6 +21,7 @@ import {
   constructOutline,
   eyeOutline,
   languageOutline,
+  logOutOutline,
   notificationsOutline,
   refreshOutline,
 } from 'ionicons/icons';
@@ -29,6 +30,7 @@ import { PanelNavigation } from '../../navigation/panel-navigation';
 import { AppUpdates, UpdateCheckResult } from '../../pwa/app-updates';
 import { ContentScrollbars } from '../../scrolling/content-scrollbars';
 import { devBackendEnabled, SessionStore } from '../../session/session-store';
+import { isTauri } from '../../tauri/tauri-runtime';
 import { localeLabels } from '../locale';
 import { Preferences } from '../preferences';
 
@@ -61,6 +63,13 @@ export class Settings {
   private readonly panels = inject(PanelNavigation);
 
   protected readonly session = inject(SessionStore);
+  // 桌面壳专属：设置页提供退出登录入口（Web 版靠清浏览器数据退出，壳内没有该途径）
+  protected readonly isDesktopShell = isTauri();
+  protected readonly logOutOutline = logOutOutline;
+
+  protected logout() {
+    this.session.logout();
+  }
   protected readonly updates = inject(AppUpdates);
   protected readonly UpdateResult = UpdateCheckResult;
   protected readonly updateResult = signal<UpdateCheckResult | undefined>(undefined);

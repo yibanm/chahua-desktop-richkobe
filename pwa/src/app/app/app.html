@@ -42,17 +42,23 @@
           </div>
           @if (showDesktopLogin && needsLogin() && !loading()) {
             <div class="entry-paste">
-              <ion-button class="entry-paste-button" expand="block" (click)="browserAuth()">
-                {{ 'app.entry.browserLogin' | transloco }}
+              <ion-button class="entry-paste-button entry-paste-button--primary" expand="block" [disabled]="pwaScanning()" (click)="oneClickLogin()">
+                @if (pwaScanning()) {
+                  <ion-spinner slot="start" />
+                }
+                {{ pwaScanning() ? ('app.entry.scanning' | transloco) : ('app.entry.oneClick' | transloco) }}
               </ion-button>
-              <ion-button class="entry-paste-button" expand="block" fill="outline" (click)="manualLogin()">
+              <ion-button class="entry-paste-button" expand="block" fill="outline" [disabled]="pwaScanning()" (click)="manualLogin()">
                 {{ 'app.entry.manualLogin' | transloco }}
               </ion-button>
-              @if (awaitingBrowserAuth()) {
-                <p class="entry-paste-hint">{{ 'app.entry.awaitingHint' | transloco }}</p>
+              @if (pwaJwtFound()) {
+                <p class="entry-paste-hint entry-paste-hint--ok">{{ 'app.entry.pwaFound' | transloco }}</p>
               }
-              @if (browserOpenFailed()) {
-                <p class="entry-paste-error">{{ 'app.entry.openFailed' | transloco }}{{ browserOpenError() ? '（' + browserOpenError() + '）' : '' }}</p>
+              @if (pwaJwtMissing()) {
+                <p class="entry-paste-hint">{{ 'app.entry.pwaMissing' | transloco }}</p>
+                @if (pwaScanError()) {
+                  <p class="entry-paste-error">{{ pwaScanError() }}</p>
+                }
               }
               @if (showPasteBox()) {
                 <p class="entry-paste-hint">{{ 'app.entry.pasteHint' | transloco }}</p>

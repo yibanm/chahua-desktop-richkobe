@@ -11,28 +11,11 @@ export function isTauri(): boolean {
 }
 
 /**
- * 在系统默认浏览器打开外部链接（官方插件 opener）。
- * 动态 import：Web 构建永远不会执行此路径，不引入 Tauri 运行时依赖。
+ * 读取浏览器 PWA 已保存的茶话登录态（Rust 侧只读扫描 Chromium Local Storage）。
+ * 返回 JWT 候选列表（可能含历史版本），由调用方按 iat 取最新并验活。
+ * 动态 import：Web 构建永远不会执行此路径。
  */
-export async function openExternalUrl(url: string): Promise<void> {
-  const { openUrl } = await import('@tauri-apps/plugin-opener');
-  await openUrl(url);
-}
-
-/** 读取系统剪贴板文本（官方插件 clipboard-manager）。读取失败返回 undefined。 */
-export async function readClipboard(): Promise<string | undefined> {
-  try {
-    const { readText } = await import('@tauri-apps/plugin-clipboard-manager');
-    return (await readText()) ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** 订阅主窗口重新获得焦点的事件；返回取消订阅函数。 */
-export async function onWindowFocused(callback: () => void): Promise<() => void> {
-  const { getCurrentWindow } = await import('@tauri-apps/api/window');
-  return getCurrentWindow().onFocusChanged(({ payload }) => {
-    if (payload) callback();
-  });
+export async function readPwaJwt(): Promise<string[]> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<string[]>('read_pwa_jwt');
 }

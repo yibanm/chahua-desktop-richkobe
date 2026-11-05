@@ -6,6 +6,7 @@ import { ModalController } from '@ionic/angular';
 import { TranslocoService } from '@jsverse/transloco';
 import { filter, firstValueFrom, map, timeout } from 'rxjs';
 import { RpcApi } from '../../generated/rpc-api';
+import { isTauri } from '../tauri/tauri-runtime';
 import {
   ApiPushProvider,
   GroupKind,
@@ -75,6 +76,11 @@ export class PushNotifications {
   constructor() {
     if (this.supported && Notification.permission === 'granted' && window.localStorage.getItem(ENABLED_KEY) === null) {
       this.setDeviceEnabled(true);
+    }
+    // 桌面壳：SW 推送不可用，但 Web Notification 可用；登录后自动开通知开关并请求权限
+    if (isTauri() && 'Notification' in window) {
+      if (window.localStorage.getItem(ENABLED_KEY) === null) this.setDeviceEnabled(true);
+      if (Notification.permission === 'default') void Notification.requestPermission();
     }
   }
 
@@ -256,6 +262,23 @@ export class PushNotifications {
       String(message.sender.uid);
     const text = notificationText(message, (key) => this.transloco.translate(key));
     this.remember(message.id);
+    // 桌面壳无 Service Worker：直接用 Web Notification API（WebView2 映射为系统 toast）
+    if (isTauri()) {
+      const suppress =
+        !document.hidden &&
+        this.currentConversation(message) &&
+        (!modal || (!!modal.classList?.contains('route-panel') && this.panels.sidebar()));
+      if (!suppress) {
+        try {
+          new Notification(title, {
+            body: chat?.kind === GroupKind.dm ? text : `${message.sender.name ?? message.sender.uid}: ${text}`,
+          });
+        } catch (error) {
+          console.warn('[notify] desktop notification failed:', error);
+        }
+      }
+      return;
+    }
     await this.workerCommand({
       type: 'CHAHUA_NOTIFY',
       suppress:
