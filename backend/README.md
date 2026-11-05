@@ -156,6 +156,10 @@ The server applies pending embedded Diesel migrations at startup in version orde
 New migrations must sort after the latest migration on `main`; preserve dependency
 order when re-dating an unmerged branch's migrations.
 
+Application tables, including unread revisions, use the `search_path` configured
+in `DATABASE_URL`; they are not required to live in `public`. Migrations and
+message-writing sessions must use the same application search path as the server.
+
 The reactor-sampling index `idx_message_reactions_sample` is created inside the
 migration transaction during startup. Its build can block writes to
 `message_reactions`; the API waits for the migration to commit before serving.
@@ -208,6 +212,9 @@ single-cursor misses share a load; multi-cursor requests deduplicate and batch
 their probes.
 
 Chat-list row mention and reaction counts are restricted to returned memberships.
+Reaction-count page filters constrain `messages.chat_id` directly so PostgreSQL
+can use the message table's chat distribution when choosing the join order,
+rather than building a hash of chat history before checking reaction rows.
 Account totals remain independent of pagination. Collection snapshots share
 main-chat counts with the account app badge, rather than summing overlapping view
 totals. Archive, mute and membership visibility rules remain independently applied.

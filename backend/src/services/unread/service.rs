@@ -470,13 +470,15 @@ impl UnreadService {
         if memberships.is_empty() {
             return Ok(HashMap::new());
         }
+        // Filter messages directly so their chat distribution informs the join
+        // estimate; filtering only memberships can favor hashing chat history.
         let rows = sql_query(
             "SELECT m.chat_id AS chat_id, COUNT(DISTINCT mr.message_id)::BIGINT AS reaction_count
              FROM message_reactions mr
              JOIN messages m ON m.id = mr.message_id
              JOIN group_membership gm
                ON gm.chat_id = m.chat_id AND gm.uid = $1
-             WHERE mr.message_author_uid = $1 AND gm.chat_id = ANY($2)
+             WHERE mr.message_author_uid = $1 AND m.chat_id = ANY($2)
                AND mr.user_uid <> $1
                AND m.deleted_at IS NULL
                AND m.is_published = TRUE
@@ -748,10 +750,10 @@ impl UnreadService {
             HashMap::new()
         } else {
             sql_query(
-                "SELECT chat_id, revision FROM public.chat_unread_revisions
+                "SELECT chat_id, revision FROM chat_unread_revisions
                        WHERE chat_id = ANY($1)
-                         AND to_regclass('messages') = to_regclass('public.messages')
-                         AND to_regclass('groups') = to_regclass('public.groups')
+                         AND to_regclass('pg_temp.messages') IS NULL
+                         AND to_regclass('pg_temp.groups') IS NULL
                          AND pg_current_xact_id_if_assigned() IS NULL",
             )
             .bind::<diesel::sql_types::Array<diesel::sql_types::BigInt>, _>(
@@ -823,9 +825,9 @@ impl UnreadService {
             "SELECT requested.chat_id, requested.last_read_message_id, counts.unread_count, revisions.revision
              FROM UNNEST($1::BIGINT[], $2::BIGINT[])
                  AS requested(chat_id, last_read_message_id)
-             LEFT JOIN public.chat_unread_revisions revisions ON revisions.chat_id = requested.chat_id
-               AND to_regclass('messages') = to_regclass('public.messages')
-               AND to_regclass('groups') = to_regclass('public.groups')
+             LEFT JOIN chat_unread_revisions revisions ON revisions.chat_id = requested.chat_id
+               AND to_regclass('pg_temp.messages') IS NULL
+               AND to_regclass('pg_temp.groups') IS NULL
                AND pg_current_xact_id_if_assigned() IS NULL
              CROSS JOIN LATERAL (
                  SELECT COUNT(*)::BIGINT AS unread_count
@@ -2031,6 +2033,74 @@ mod tests {
             "transaction should roll back"
         );
     }
+    #[test]
+    fn revision_cache_uses_configured_schema() {
+        use diesel::connection::SimpleConnection;
+        use diesel::{Connection, PgConnection};
+
+        let Ok(url) = std::env::var("WETTY_TEST_DATABASE_URL") else {
+            return;
+        };
+        let mut conn = PgConnection::establish(&url).unwrap();
+        conn.batch_execute("CREATE SCHEMA unread_cache_schema_regression")
+            .unwrap();
+        struct Cleanup(PgConnection);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = self
+                    .0
+                    .batch_execute("DROP SCHEMA unread_cache_schema_regression CASCADE");
+            }
+        }
+        let mut cleanup = Cleanup(conn);
+        let conn = &mut cleanup.0;
+        conn.batch_execute(
+            "SET search_path = unread_cache_schema_regression;
+             CREATE TABLE groups (id BIGINT PRIMARY KEY);
+             CREATE TABLE messages (
+                 id BIGINT PRIMARY KEY, chat_id BIGINT NOT NULL,
+                 reply_root_id BIGINT, is_published BOOLEAN NOT NULL,
+                 deleted_at TIMESTAMPTZ, system_kind TEXT, has_thread BOOLEAN NOT NULL DEFAULT FALSE
+             );
+             INSERT INTO groups VALUES (1);",
+        )
+        .unwrap();
+        conn.batch_execute(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/migrations/2026-11-04-044733-0000_add_chat_unread_revisions/up.sql"
+        )))
+        .unwrap();
+        let service = UnreadService::new();
+        let cursor = ChatUnreadCursor {
+            chat_id: 1,
+            last_read_message_id: 0,
+            hide_membership_messages: false,
+        };
+        assert_eq!(
+            service.count_chat_unread_cursors(conn, [cursor]).unwrap()[&cursor],
+            0
+        );
+        let mut writer = PgConnection::establish(&url).unwrap();
+        writer
+            .batch_execute(
+                "SET search_path = unread_cache_schema_regression;
+                 INSERT INTO messages
+                     (id, chat_id, is_published) VALUES (1, 1, TRUE);",
+            )
+            .unwrap();
+        assert_eq!(
+            service.count_chat_unread_cursors(conn, [cursor]).unwrap()[&cursor],
+            1
+        );
+        writer
+            .batch_execute("DELETE FROM messages WHERE id = 1")
+            .unwrap();
+        assert_eq!(
+            service.count_chat_unread_cursors(conn, [cursor]).unwrap()[&cursor],
+            0
+        );
+    }
+
     #[test]
     fn revision_cache_observes_commits_and_never_publishes_rollback() {
         use diesel::connection::SimpleConnection;
