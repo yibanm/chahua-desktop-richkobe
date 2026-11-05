@@ -247,14 +247,20 @@ export class App {
     for (const { token } of sorted) {
       this.session.adoptToken(token);
       try {
-        await this.initialize();
+        // 登录限时 5 秒（用户要求）：超时按失败处理，给出导出引导而非无限转圈
+        await Promise.race([
+          this.initialize(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('login-timeout-5s')), 5000),
+          ),
+        ]);
         if (this.session.user()) {
           // 登录成功统一落聊天列表：入口链接可能带邀请路径，用户要求不弹群
           void this.router.navigateByUrl('/chats');
           return;
         }
       } catch {
-        // 该候选已失效（吊销/过期），继续试下一个
+        // 该候选已失效（吊销/过期/超时），继续试下一个
       }
     }
     this.pwaJwtFound.set(false);

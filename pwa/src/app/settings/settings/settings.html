@@ -34,7 +34,7 @@
   </ion-list>
   @if (isDesktopShell) {
     <ion-list [inset]="true">
-      <ion-item [button]="true" [detail]="false" lines="none" color="danger" (click)="logout()">
+      <ion-item [button]="true" [detail]="false" lines="none" (click)="logout()">
         <ion-icon slot="start" [icon]="logOutOutline" color="danger"></ion-icon>
         <ion-label color="danger">{{ 'settings.menu.logout' | transloco }}</ion-label>
       </ion-item>
