@@ -205,6 +205,21 @@
   margin-top: calc(var(--app-line-body) - var(--app-line-micro));
 }
 
+// 防撤回：被撤回但本地保留原文的消息——正文灰字，右下角红色「已撤回」标记
+// （标记跟在 float 的时间戳之后，自然落到气泡右下角）
+:host(.recalled) .message-text {
+  color: var(--ion-color-medium);
+}
+
+.recalled-mark {
+  float: inline-end;
+  clear: inline-end;
+  margin-top: 2px;
+  font-size: var(--app-font-micro, 11px);
+  line-height: 1.2;
+  color: var(--ion-color-danger);
+}
+
 .retry-button {
   display: grid;
   place-items: center;

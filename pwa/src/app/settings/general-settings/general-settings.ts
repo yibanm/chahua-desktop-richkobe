@@ -30,6 +30,7 @@ import {
   peopleOutline,
   personCircleOutline,
   personOutline,
+  shieldCheckmarkOutline,
   sunnyOutline,
 } from 'ionicons/icons';
 import { PanelNavigation } from '../../navigation/panel-navigation';
@@ -81,6 +82,7 @@ export class GeneralSettings {
   protected readonly fontSizes = chatFontSizes;
   protected readonly avatarsIcon = personCircleOutline;
   protected readonly dmDetailsIcon = personOutline;
+  protected readonly antiRecallIcon = shieldCheckmarkOutline;
   protected readonly systemIcon = contrastOutline;
   protected readonly lightIcon = sunnyOutline;
   protected readonly darkIcon = moonOutline;

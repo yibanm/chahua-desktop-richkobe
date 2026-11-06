@@ -18,6 +18,7 @@ import { MessageAuthor } from '../message-author/message-author';
 import { MessageDelivery } from '../message-delivery';
 import { MessagePreview } from '../message-preview/message-preview';
 import { MessageReactions } from '../message-reactions/message-reactions';
+import { Preferences } from '../../settings/preferences';
 import { MessageStatus } from '../message-status/message-status';
 import { MessageText } from '../message-text/message-text';
 import { MessageThread } from '../message-thread/message-thread';
@@ -77,6 +78,7 @@ export interface MessageMenuSelection {
   host: {
     '[class.selecting]': 'selecting()',
     '[class.selected]': 'selected()',
+    '[class.recalled]': 'recalled()',
     '[class.unselectable]': 'selecting() && !selectable()',
     '[attr.data-message-id]': 'messageId()',
     '[style.--sender-light]': 'senderColors().light',
@@ -87,6 +89,7 @@ export interface MessageMenuSelection {
 })
 export class Message<T extends MessageContent = MessageResponse> {
   private readonly router = inject(Router);
+  private readonly preferences = inject(Preferences);
   protected async profile() {
     if (!this.canInteract() || this.record()) return;
     const sender = this.message().sender;
@@ -164,6 +167,10 @@ export class Message<T extends MessageContent = MessageResponse> {
   readonly busy = input(false);
   readonly uploads = input<readonly AttachmentUpload[]>([]);
   protected readonly hasUploadFailure = computed(() => this.uploads().some((upload) => !!upload.state().error));
+  // 防撤回开启时被撤回的消息：正文保留（灰字）+ 右下角红标。判定=删除标记且本地仍有正文
+  protected readonly recalled = computed(
+    () => this.message().isDeleted && !!this.message().message && this.preferences.antiRecallEnabled(),
+  );
   readonly retryUpload = output<AttachmentUpload>();
   readonly removeUpload = output<AttachmentUpload>();
   readonly retry = output<void>();

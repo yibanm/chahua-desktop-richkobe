@@ -150,7 +150,8 @@
       "fontPreviewOutgoing": "選擇一個閱讀起來舒服的大小。",
       "fontDefault": "系統預設",
       "showMembershipMessages": "顯示群成員進出群訊息",
-      "saveFailed": "儲存失敗，請重試。"
+      "saveFailed": "儲存失敗，請重試。",
+      "antiRecall": "防撤回：在本機保留被撤回訊息的原文"
     },
     "language": {
       "title": "語言",
@@ -550,7 +551,8 @@
       }
     },
     "message": {
-      "edited": "已編輯"
+      "edited": "已編輯",
+      "recalled": "已撤回"
     },
     "composer": {
       "tooManyAttachments": "每則訊息最多新增 20 個附件。",

@@ -150,7 +150,8 @@
       "fontPreviewOutgoing": "Choose a size that feels comfortable to read.",
       "fontDefault": "System default",
       "showMembershipMessages": "Show group join and leave messages",
-      "saveFailed": "Could not save. Please try again."
+      "saveFailed": "Could not save. Please try again.",
+      "antiRecall": "Anti-recall: keep the original text of recalled messages on this device"
     },
     "language": {
       "title": "Language",
@@ -550,7 +551,8 @@
       }
     },
     "message": {
-      "edited": "Edited"
+      "edited": "Edited",
+      "recalled": "Recalled"
     },
     "composer": {
       "tooManyAttachments": "You can add up to 20 attachments per message.",

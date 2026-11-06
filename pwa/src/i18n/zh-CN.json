@@ -150,7 +150,8 @@
       "fontPreviewOutgoing": "选择一个阅读起来舒服的大小。",
       "fontDefault": "系统默认",
       "showMembershipMessages": "显示群成员进出群消息",
-      "saveFailed": "保存失败，请重试。"
+      "saveFailed": "保存失败，请重试。",
+      "antiRecall": "防撤回：在本机保留被撤回消息的原文"
     },
     "language": {
       "title": "语言",
@@ -550,7 +551,8 @@
       }
     },
     "message": {
-      "edited": "已编辑"
+      "edited": "已编辑",
+      "recalled": "已撤回"
     },
     "composer": {
       "tooManyAttachments": "每条消息最多添加 20 个附件。",

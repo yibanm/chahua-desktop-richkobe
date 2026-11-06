@@ -49,21 +49,21 @@ void import('./app/tauri/tauri-runtime')
 // 外链交给系统默认浏览器：壳内 WebView 没有 target="_blank" 出口，点击会静默失败。
 // 用 document 级委托一处覆盖所有 <a>（markdown 渲染的、模板里写死的都算），
 // 不逐个改上游组件。只拦外部 http(s)，应用内路由与 internal 链接（自带 preventDefault）不受影响。
+// **必须用冒泡阶段**（不能 capture）：媒体预览等组件在自己的 (click) 里 preventDefault，
+// 捕获阶段会抢在组件之前把预览劫持去浏览器（用户实测复现）；冒泡阶段先让组件处理，
+// 再用 defaultPrevented 跳过已被组件接管的点击。
 const { openExternalUrl } = await import('./app/tauri/tauri-runtime');
-document.addEventListener(
-  'click',
-  (event) => {
-    const anchor = (event.target as Element | null)?.closest?.('a[href]');
-    if (!anchor) return;
-    const href = anchor.getAttribute('href') ?? '';
-    if (!/^https?:\/\//i.test(href) || /tauri\.localhost/i.test(href)) return;
-    if (anchor.hasAttribute('internal') || anchor.getAttribute('routerlink') != null) return;
-    event.preventDefault();
-    event.stopPropagation();
-    void openExternalUrl(href).catch(() => {});
-  },
-  true,
-);
+document.addEventListener('click', (event) => {
+  if (event.defaultPrevented) return;
+  const anchor = (event.target as Element | null)?.closest?.('a[href]');
+  if (!anchor) return;
+  const href = anchor.getAttribute('href') ?? '';
+  if (!/^https?:\/\//i.test(href) || /tauri\.localhost/i.test(href)) return;
+  if (anchor.hasAttribute('internal') || anchor.getAttribute('routerlink') != null) return;
+  event.preventDefault();
+  event.stopPropagation();
+  void openExternalUrl(href).catch(() => {});
+});
 
 // 连接预热：官方 API 在 Cloudflare 后，冷启动首次 TLS+CF 握手是登录慢的主因之一。
 // 启动即发一次预期 401 的请求暖连接池，fire-and-forget，失败无副作用。

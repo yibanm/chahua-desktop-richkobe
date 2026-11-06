@@ -10,6 +10,8 @@ const PINNED_REACTIONS_KEY = 'chahua.preferences.pinnedReactions';
 
 const AVATARS_KEY = 'chahua.preferences.showAllAvatars';
 const DM_DETAILS_KEY = 'chahua.preferences.showDmDetails';
+// 防撤回：默认关（保持上游行为）；开启后本地保留被撤回消息的原文并加标记
+const ANTI_RECALL_KEY = 'chahua.preferences.antiRecall';
 
 const COLOR_MODE_KEY = 'chahua.preferences.colorMode';
 const LOCALE_KEY = 'chahua.preferences.locale';
@@ -43,10 +45,12 @@ export class Preferences {
   private readonly threads = signal(window.localStorage.getItem(THREADS_KEY) !== 'false');
   private readonly avatars = signal(window.localStorage.getItem(AVATARS_KEY) === 'true');
   private readonly dmDetails = signal(window.localStorage.getItem(DM_DETAILS_KEY) !== 'false');
+  private readonly antiRecall = signal(window.localStorage.getItem(ANTI_RECALL_KEY) === 'true');
   private readonly mode = signal(readColorMode());
   readonly showThreadsInMessages = this.threads.asReadonly();
   readonly showAllAvatars = this.avatars.asReadonly();
   readonly showDmDetails = this.dmDetails.asReadonly();
+  readonly antiRecallEnabled = this.antiRecall.asReadonly();
   readonly showMembershipMessages = computed(() => this.session.user()?.showMembershipMessages ?? true);
   readonly colorMode = this.mode.asReadonly();
   readonly selectedLocale = this.locale.asReadonly();
@@ -64,6 +68,11 @@ export class Preferences {
   setShowDmDetails(value: boolean) {
     window.localStorage.setItem(DM_DETAILS_KEY, String(value));
     this.dmDetails.set(value);
+  }
+
+  setAntiRecall(value: boolean) {
+    window.localStorage.setItem(ANTI_RECALL_KEY, String(value));
+    this.antiRecall.set(value);
   }
 
   setShowMembershipMessages(value: boolean) {

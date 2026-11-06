@@ -1,5 +1,6 @@
 import { isMembershipMessage } from '../messages/system-message';
 import { ChatSettingsChanged, SessionStore } from '../session/session-store';
+import { Preferences } from '../settings/preferences';
 import { computed, DestroyRef, inject, Injectable, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom, map, Subject, takeUntil } from 'rxjs';
@@ -41,6 +42,7 @@ type MessagePageParams = Omit<MessagesListParams, 'chatId' | 'max' | 'threadId'>
 export class ConversationStore {
   private readonly api = inject(RpcApi);
   private readonly session = inject(SessionStore);
+  private readonly preferences = inject(Preferences);
   private readonly destroyRef = inject(DestroyRef);
   private version = 0;
   private readonly cancel = new Subject<void>();
@@ -284,13 +286,26 @@ export class ConversationStore {
         this.update(event.payload);
         break;
       case ServerWsMessageType.messageDeleted:
-        this.update({ ...event.payload, isDeleted: true });
-        if (this.accepts(event.payload)) this.restoreChatPreview(new Set([event.payload.id]));
+        if (this.preferences.antiRecallEnabled()) {
+          // 防撤回：本地保留原文，只打删除标记；不清内容、不动列表预览
+          this.patch(event.payload.id, (current) => ({ ...current, isDeleted: true }));
+          this.deletedIds.add(event.payload.id);
+        } else {
+          this.update({ ...event.payload, isDeleted: true });
+          if (this.accepts(event.payload)) this.restoreChatPreview(new Set([event.payload.id]));
+        }
         break;
       case ServerWsMessageType.messagesBulkDeleted:
         if (event.payload.chatId === this.context?.chatId) {
-          for (const id of event.payload.messageIds) this.delete(id);
-          this.restoreChatPreview(new Set(event.payload.messageIds));
+          if (this.preferences.antiRecallEnabled()) {
+            for (const id of event.payload.messageIds) {
+              this.patch(id, (current) => ({ ...current, isDeleted: true }));
+              this.deletedIds.add(id);
+            }
+          } else {
+            for (const id of event.payload.messageIds) this.delete(id);
+            this.restoreChatPreview(new Set(event.payload.messageIds));
+          }
         }
         break;
       case ServerWsMessageType.reactionUpdated:
