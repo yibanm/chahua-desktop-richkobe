@@ -18,32 +18,56 @@ export class MessageArchive {
   private readonly db = openDatabase();
   private readonly objectUrls = new Map<string, string>();
 
-  /** 归档一条消息的文字与附件元信息（含 url/fileName/kind，供还原）。整条存，不做字段裁剪。 */
-  ingest(message: MessageResponse): void {
+  /**
+   * 归档一条消息。文字总是入档；媒体仅在 withMedia 时入档——
+   * 历史加载一页几十条媒体消息若立即全拉，会占满 plugin-http 的 Rust 连接池，
+   * 饿死启动必需的 users/me 与 WS 握手（用户实测「一直转进不去」），
+   * 故历史路径只存文字，实时新消息才拉媒体。
+   */
+  ingest(message: MessageResponse, withMedia = false): void {
     if (message.isDeleted || (!message.message && !message.attachments.length)) return;
     void this.db
       .then((db) => put(db, MESSAGES, message))
       .catch(() => {});
+    if (!withMedia) return;
     for (const attachment of message.attachments) {
       if (!attachment.url) continue;
       void this.fetchMedia(attachment.url);
     }
   }
 
-  /** 拉取媒体二进制入档；已入档或正在拉取则跳过。presigned url 有时效，收到即拉。 */
-  private async fetchMedia(url: string): Promise<void> {
-    if (this.objectUrls.has(url)) return;
-    const db = await this.db;
-    const existing = await get(db, MEDIA, url).catch(() => undefined);
-    if (existing) return;
-    try {
-      const response = await fetch(url);
-      if (!response.ok) return;
-      const blob = await response.blob();
-      await put(db, MEDIA, { url, blob, at: Date.now() });
-    } catch {
-      // 媒体拉取失败不入档，展示时回退原 url
+  // 媒体入档并发上限：避免突发下载挤占网络与连接池
+  private mediaInFlight = 0;
+  private readonly mediaQueue: string[] = [];
+
+  /** 拉取媒体二进制入档。走 WebView 原生 XHR（附件本就是 CORS * 直连 S3 的通道），
+   * 不经被 monkey-patch 的 fetch，即不占 plugin-http 的 Rust 连接池。 */
+  private fetchMedia(url: string): void {
+    if (this.objectUrls.has(url) || this.mediaQueue.includes(url)) return;
+    if (this.mediaInFlight >= 2) {
+      this.mediaQueue.push(url);
+      return;
     }
+    this.mediaInFlight++;
+    const done = () => {
+      this.mediaInFlight--;
+      const next = this.mediaQueue.shift();
+      if (next) this.fetchMedia(next);
+    };
+    void this.db
+      .then((db) => get(db, MEDIA, url))
+      .then((existing) => {
+        if (existing) return undefined;
+        return xhrBlob(url);
+      })
+      .then(async (blob) => {
+        if (blob) {
+          const db = await this.db;
+          await put(db, MEDIA, { url, blob, at: Date.now() });
+        }
+      })
+      .catch(() => {})
+      .finally(done);
   }
 
   /** 服务器返回已删除的消息时，用归档还原文字与附件元信息；无归档返回 undefined。 */
@@ -103,5 +127,17 @@ function put(db: IDBDatabase, store: string, value: unknown): Promise<void> {
     const request = tx(db, store, 'readwrite').objectStore(store).put(value);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
+  });
+}
+
+/** 原生 XHR 取二进制：不经 window.fetch（壳内被 monkey-patch 到 plugin-http 的 Rust 池）。 */
+function xhrBlob(url: string): Promise<Blob | undefined> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url);
+    xhr.responseType = 'blob';
+    xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300 ? (xhr.response as Blob) : undefined);
+    xhr.onerror = () => resolve(undefined);
+    xhr.send();
   });
 }

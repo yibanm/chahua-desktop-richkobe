@@ -274,8 +274,8 @@ export class ConversationStore {
         isMembershipMessage(message))
     )
       return;
-    // 新消息实时入本地归档：防撤回的持久层数据源（update() 只走更新/删除事件，收不到新消息）
-    this.archive.ingest(message);
+    // 新消息实时入本地归档（带媒体）：防撤回的持久层数据源（update() 只走更新/删除事件，收不到新消息）
+    this.archive.ingest(message, true);
     if (!this.latestSeenId || message.id > this.latestSeenId) this.latestSeenId = message.id;
     // A live message cannot bridge a gap between historical messages and the present.
     if (!this.atLatest()) return;
@@ -286,7 +286,7 @@ export class ConversationStore {
     });
   }
 
-  /** 批量入本地归档：历史加载/合并/实时接收三条路径共用，防撤回持久层的数据源。 */
+  /** 批量入本地归档：历史加载/合并路径只存文字不拉媒体（避免占满连接池饿死启动请求）。 */
   private ingestPage(messages: readonly MessageResponse[]): void {
     for (const message of messages) this.archive.ingest(message);
   }
