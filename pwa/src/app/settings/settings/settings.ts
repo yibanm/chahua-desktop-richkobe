@@ -23,7 +23,6 @@ import {
   languageOutline,
   logOutOutline,
   notificationsOutline,
-  personCircleOutline,
   refreshOutline,
 } from 'ionicons/icons';
 import { ChatAvatar } from '../../chats/chat-avatar/chat-avatar';
@@ -70,7 +69,6 @@ export class Settings {
   // 桌面壳专属：设置页提供退出登录入口（Web 版靠清浏览器数据退出，壳内没有该途径）
   protected readonly isDesktopShell = isTauri();
   protected readonly logOutOutline = logOutOutline;
-  protected readonly personCircleOutline = personCircleOutline;
 
   /** 论坛头像设置页：壳内 WebView 打不开（无论坛登录态 + 该域直连被 DNS 污染），交系统浏览器。 */
   protected openAvatarPage() {

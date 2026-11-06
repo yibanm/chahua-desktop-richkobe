@@ -54,15 +54,7 @@
       "oneClick": "一鍵登入",
       "pwaFound": "已識別到瀏覽器裡茶話網頁版的登入資訊，正在自動登入（5 秒內完成，失敗會給出指引）……",
       "pwaMissing": "未識別到瀏覽器裡的茶話登入資訊。請先在 Edge 裡開啟茶話網頁版登入一次；或用 CookieXport 擴充功能右鍵茶話網頁匯出 Cookie，複製其中的 JWT，點「手動登入」貼上。",
-      "scanning": "正在識別瀏覽器登入資訊……",
-      "passwordLogin": "帳號密碼登入",
-      "passwordHint": "使用你的論壇帳號登入（與安卓端一致）",
-      "passwordUsername": "論壇使用者名稱",
-      "passwordField": "密碼",
-      "passwordSubmit": "登入",
-      "passwordEmpty": "請填寫使用者名稱與密碼",
-      "passwordWrong": "使用者名稱或密碼不正確",
-      "passwordFailed": "登入失敗，請檢查網路後重試"
+      "scanning": "正在識別瀏覽器登入資訊……"
     },
     "updatePendingMessages": "仍有未傳送的訊息，更新將遺失這些工作。",
     "updateAnyway": "仍然更新"

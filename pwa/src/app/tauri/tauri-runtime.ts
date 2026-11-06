@@ -16,7 +16,7 @@ export function isTauri(): boolean {
  * 测试包用 release profile 构建（debug profile 无优化，低内存机器上卡）；
  * 标识只表「第几个测试包」，不表构建 profile。
  */
-export const DESKTOP_BUILD_TAG = 'b10';
+export const DESKTOP_BUILD_TAG = 'b15';
 
 /**
  * 读取浏览器 PWA 已保存的茶话登录态（Rust 侧只读扫描 Chromium Local Storage）。
@@ -28,15 +28,6 @@ export async function readPwaJwt(): Promise<string[]> {
   return invoke<string[]>('read_pwa_jwt');
 }
 
-// 论坛账号密码换 JWT 的接口（与安卓端同一端点）。挂在 chahui.app 下，
-// 已在 capabilities 的 http:default allow 列表内，且 chahui.app 直连可达（不被 DNS 污染）。
-const LOGIN_URL = 'https://chahui.app/main/shireyishunjian-telegram-api/chahua_login.php';
-
-/**
- * 用论坛账号密码登录，换取 JWT。
- * 密码只在内存中传给接口，不落盘、不写日志、不进 localStorage。
- * 接口成功时返回 JWT 纯文本；失败返回 HTTP 401/403（凭证错）或其它状态码。
- */
 /**
  * 前端日志落盘：走自定义 Rust 命令 frontend_log（Rust 侧 log 宏 → tauri-plugin-log 文件）。
  * 不用 @tauri-apps/plugin-log 的前端 API——实测它在本壳内不落文件（b9 启动后日志零新行）。
@@ -52,41 +43,6 @@ async function webLog(level: 'info' | 'warn' | 'error', message: string): Promis
 }
 export const logInfo = (message: string) => webLog('info', message);
 export const logError = (message: string) => webLog('error', message);
-
-export async function loginWithCredentials(username: string, password: string): Promise<string> {
-  await logInfo(`[login] start, username length ${username.length}, password length ${password.length}`);
-  const started = Date.now();
-  let response: Response;
-  try {
-    response = await fetch(LOGIN_URL, {
-      method: 'POST',
-      headers: { Accept: 'text/plain' },
-      body: new URLSearchParams({ username, password }),
-    });
-  } catch (fetchError) {
-    // fetch 本身抛错（网络/代理/插件 IPC）：此前日志在 fetch 之后才写，导致这类失败无日志可查
-    await logError(`[login] fetch threw after ${Date.now() - started}ms: ${String(fetchError)}`);
-    throw fetchError;
-  }
-  const text = (await response.text()).trim();
-  const ms = Date.now() - started;
-  if (!response.ok || !text) {
-    await logError(`[login] credentials exchange failed: HTTP ${response.status} in ${ms}ms body="${text.slice(0, 80)}"`);
-    throw new DesktopLoginError(response.status, text || response.statusText);
-  }
-  await logInfo(`[login] credentials exchange ok: HTTP ${response.status} in ${ms}ms, token length ${text.length}`);
-  return text;
-}
-
-/** 登录接口失败：带 HTTP 状态码，供调用方区分「凭证错」与「网络/服务异常」。 */
-export class DesktopLoginError extends Error {
-  constructor(
-    readonly status: number,
-    readonly detail: string,
-  ) {
-    super(`login failed: HTTP ${status} ${detail}`);
-  }
-}
 
 /** 桌面壳通知权限状态；语义与 Web NotificationPermission 一致，便于复用上游 UI。 */
 export type DesktopPermission = 'granted' | 'denied' | 'default';

@@ -31,7 +31,7 @@ import { filter, map, TimeoutError } from 'rxjs';
 import { ChatLink } from '../chats/chat-link/chat-link';
 import { ChatList } from '../chats/chat-list/chat-list';
 import { listSelection, ListTab, type ListSelection } from '../chats/list-tabs';
-import { DESKTOP_BUILD_TAG, isTauri, loginWithCredentials, DesktopLoginError, readPwaJwt } from '../tauri/tauri-runtime';
+import { DESKTOP_BUILD_TAG, isTauri, readPwaJwt } from '../tauri/tauri-runtime';
 import { PanelNavigation } from '../navigation/panel-navigation';
 import { AppUpdates } from '../pwa/app-updates';
 import { NotificationPrompt } from '../pwa/notification-prompt/notification-prompt';
@@ -132,14 +132,7 @@ export class App {
   protected readonly pwaScanning = signal(false);
   // 识别失败的具体原因（扫描异常 / 候选全部验活失败），透出便于排障
   protected readonly pwaScanError = signal('');
-  // 账号密码登录（论坛账号，与安卓端同一接口）：展开式表单，不占主按钮位
-  protected readonly showPasswordBox = signal(false);
-  protected readonly passwordUsername = signal('');
-  protected readonly passwordValue = signal('');
-  protected readonly passwordError = signal('');
-  protected readonly passwordBusy = signal(false);
   @ViewChild('tokenInput') protected readonly tokenInput?: IonInput;
-  @ViewChild('passwordInput') protected readonly passwordInput?: IonInput;
   private initializationEpoch = 0;
   private slowAutoRetried = false;
   private slowTimer?: ReturnType<typeof setTimeout>;
@@ -296,87 +289,16 @@ export class App {
     this.pwaJwtFound.set(false);
     this.pwaScanError.set('stored-token-rejected');
     this.pwaJwtMissing.set(true);
-    // 同 submitPasswordLogin：失败后清理 transport，避免后台无限重连拖卡整机
+    // 失败后清理 transport，避免后台无限重连拖卡整机
     this.session.logout();
   }
 
   /** 手动登录：展开令牌输入框并聚焦，供粘贴 CookieXport 导出的 JWT 或入口链接。 */
   protected manualLogin() {
-    this.showPasswordBox.set(false);
     this.showPasteBox.set(true);
     this.entryLinkInvalid.set(false);
     // 等一帧让输入框渲染完成再聚焦
     setTimeout(() => void this.tokenInput?.setFocus(), 0);
-  }
-
-  /** 账号密码登录：展开表单并聚焦用户名框。论坛账号，与安卓端同一接口。 */
-  protected passwordLogin() {
-    this.showPasteBox.set(false);
-    this.passwordError.set('');
-    this.showPasswordBox.set(true);
-    setTimeout(() => void this.passwordInput?.setFocus(), 0);
-  }
-
-  /**
-   * 提交账号密码：换取 JWT 后复用既有采纳与初始化流程，落聊天列表。
-   * 密码只存在组件信号里，提交后即清空，不落 localStorage、不进日志。
-   */
-  protected async submitPasswordLogin() {
-    if (this.passwordBusy()) return;
-    const username = this.passwordUsername().trim();
-    const password = this.passwordValue();
-    if (!username || !password) {
-      this.passwordError.set('empty');
-      return;
-    }
-    this.passwordBusy.set(true);
-    this.passwordError.set('');
-    this.loginProgress.set(0.35);
-    let token: string;
-    try {
-      // 5 秒硬限只加在凭证交换这一步（用户裁定）：PHP 接口秒级返回，卡住即网络问题
-      token = await Promise.race([
-        loginWithCredentials(username, password),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('login-timeout-5s')), 5000)),
-      ]);
-    } catch (error) {
-      // 落盘失败类别：凭证错 / 5 秒超时 / fetch 抛错 / 其它——无日志时这三者无法区分
-      void import('../tauri/tauri-runtime').then((m) =>
-        m.logError(
-          `[login] submitPasswordLogin failed: ${
-            error instanceof DesktopLoginError
-              ? `HTTP ${error.status} ${error.detail.slice(0, 80)}`
-              : error instanceof Error
-                ? error.message
-                : String(error)
-          }`,
-        ),
-      );
-      this.passwordValue.set('');
-      this.passwordBusy.set(false);
-      this.loginProgress.set(0);
-      this.passwordError.set(
-        error instanceof DesktopLoginError && [401, 403].includes(error.status) ? 'credentials' : 'failed',
-      );
-      return;
-    }
-    this.passwordValue.set('');
-    this.session.adoptToken(token);
-    this.loginProgress.set(0.6);
-    // 连接初始化不再套 5 秒限：WS 冷握手实测可达数秒，掐掉会把正确密码误判为登录失败
-    // （用户实测复现）。令牌已落盘，本轮慢/失败可由 Slow 态自动重试或下次启动恢复。
-    // initialize 自带 30 秒 deadline 与错误态展示，不会无限转圈。
-    await this.initialize();
-    this.passwordBusy.set(false);
-    if (this.session.user()) {
-      this.loginProgress.set(1);
-      void this.router.navigateByUrl('/chats');
-    } else {
-      this.loginProgress.set(0);
-      // 失败必须 logout 清理：否则 transport 带着失效 reconnectToken 在后台无限重连，
-      // 每次重连都是一轮 TLS+CF 握手，低内存机器上直接把整机拖卡（用户实测「卡炸」）
-      this.session.logout();
-    }
   }
 
   /**

@@ -8,6 +8,13 @@
   margin-inline: auto;
 }
 
+// 更换头像：蓝色实心圆角矩形，紧跟头像（用户名下方）居中，不占列表行
+.profile-avatar-button {
+  margin-top: 10px;
+  --border-radius: 10px;
+  --box-shadow: none;
+}
+
 .save-status {
   --min-height: 32px;
   font-size: var(--app-font-caption);
