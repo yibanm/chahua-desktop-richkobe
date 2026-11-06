@@ -119,9 +119,10 @@ export class App {
   // 命中即提示「已识别到 PWA 的登录信息，自动登录」；未命中引导用户用 CookieXport 导出后粘贴。
   protected readonly showDesktopLogin = isTauri();
   protected readonly buildTag = DESKTOP_BUILD_TAG;
-  // 安卓壳专属：手机读不到浏览器 leveldb，一键登录路线不存在（移动端未注册 read_pwa_jwt），
-  // 必须保留账号密码登录；一键登录按钮在安卓隐藏
-  protected readonly showAndroidLogin = isAndroidShell();
+  // 账号密码登录在全部 Tauri 壳开放（桌面+安卓）：接口实测可用（200/JWT/2.7~5.05s/不校验 UA），
+  // 安卓读不到浏览器 leveldb 必须靠它；桌面作为可验证的登录途径保留（用户 2026-11-06 要求加回）
+  protected readonly showPasswordLogin = isTauri();
+  // 一键登录仅桌面：移动端未注册 read_pwa_jwt（扫浏览器 leveldb 是 Windows 专有）
   protected readonly showOneClick = isTauri() && !isAndroidShell();
   protected readonly showPasswordBox = signal(false);
   protected readonly passwordUsername = signal('');

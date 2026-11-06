@@ -55,7 +55,7 @@
               <ion-button class="entry-paste-button" expand="block" fill="outline" [disabled]="pwaScanning()" (click)="manualLogin()">
                 {{ 'app.entry.manualLogin' | transloco }}
               </ion-button>
-              @if (showAndroidLogin) {
+              @if (showPasswordLogin) {
                 <ion-button class="entry-paste-button" expand="block" fill="outline" [disabled]="pwaScanning()" (click)="passwordLogin()">
                   {{ 'app.entry.passwordLogin' | transloco }}
                 </ion-button>
