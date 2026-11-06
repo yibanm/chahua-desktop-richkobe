@@ -139,7 +139,8 @@
       "notificationWorkerUnavailable": "通知服务暂不可用，请重试。",
       "notificationDisableFailed": "关闭后台推送失败，请重试。",
       "logout": "退出登录",
-      "changeAvatar": "更换头像"
+      "changeAvatar": "更换头像",
+      "openSource": "开源项目"
     },
     "general": {
       "title": "聊天设置",

@@ -22,6 +22,7 @@ import {
   eyeOutline,
   languageOutline,
   logOutOutline,
+  logoGithub,
   notificationsOutline,
   refreshOutline,
 } from 'ionicons/icons';
@@ -36,6 +37,8 @@ import { Preferences } from '../preferences';
 
 // 论坛（Discuz）头像设置页：后端无用户头像写接口，头像由论坛侧维护
 const AVATAR_PAGE_URL = 'https://www.shireyishunjian.com/main/home.php?mod=spacecp&ac=avatar';
+// 本项目源代码仓库（AGPL-3.0：改造后分发须公开全部改动）
+const SOURCE_REPO_URL = 'https://github.com/yibanm/chahua-desktop-richkobe';
 
 @Component({
   selector: 'app-settings',
@@ -69,6 +72,12 @@ export class Settings {
   // 桌面壳专属：设置页提供退出登录入口（Web 版靠清浏览器数据退出，壳内没有该途径）
   protected readonly isDesktopShell = isTauri();
   protected readonly logOutOutline = logOutOutline;
+  protected readonly githubIcon = logoGithub;
+
+  /** 开源项目入口：用系统浏览器打开本仓库（AGPL 要求公开改动源码，顺带给出出处）。 */
+  protected openSource() {
+    void openExternalUrl(SOURCE_REPO_URL).catch(() => {});
+  }
 
   /** 论坛头像设置页：壳内 WebView 打不开（无论坛登录态 + 该域直连被 DNS 污染），交系统浏览器。 */
   protected openAvatarPage() {

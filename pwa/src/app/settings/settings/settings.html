@@ -38,6 +38,10 @@
       <ion-label>{{ 'settings.general.language' | transloco }}</ion-label>
       <ion-note slot="end">{{ localeLabel() }}</ion-note>
     </ion-item>
+    <ion-item [button]="true" [detail]="false" lines="none" (click)="openSource()">
+      <ion-icon slot="start" [icon]="githubIcon" color="primary"></ion-icon>
+      <ion-label>{{ 'settings.menu.openSource' | transloco }}</ion-label>
+    </ion-item>
   </ion-list>
   @if (isDesktopShell) {
     <ion-list [inset]="true">

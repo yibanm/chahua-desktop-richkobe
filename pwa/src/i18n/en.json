@@ -139,7 +139,8 @@
       "notificationWorkerUnavailable": "Notification service is unavailable. Please retry.",
       "notificationDisableFailed": "Could not disable background push. Please retry.",
       "logout": "Sign out",
-      "changeAvatar": "Change avatar"
+      "changeAvatar": "Change avatar",
+      "openSource": "Open-source project"
     },
     "general": {
       "title": "Chat settings",

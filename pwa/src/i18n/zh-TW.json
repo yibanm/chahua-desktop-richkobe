@@ -139,7 +139,8 @@
       "notificationWorkerUnavailable": "通知服務暫不可用，請重試。",
       "notificationDisableFailed": "關閉背景推播失敗，請重試。",
       "logout": "登出",
-      "changeAvatar": "更換頭像"
+      "changeAvatar": "更換頭像",
+      "openSource": "開源專案"
     },
     "general": {
       "title": "聊天設定",
