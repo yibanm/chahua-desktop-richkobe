@@ -305,7 +305,23 @@ export class MessageAttachments {
   protected readonly fileIcon = documentAttachOutline;
   protected readonly downloadIcon = downloadOutline;
 
+  /**
+   * 媒体加载失败：立即进入失败态（保持上游行为与测试契约），同时异步查本地归档——
+   * presigned url 过期/被撤回的消息本地副本仍可展示，命中即撤掉失败标记换本地源。
+   * 测试环境无 IndexedDB，归档查询返回空，失败态不变。
+   */
   protected fail(key: SnowflakeID | string) {
     this.failed.update((failed) => new Set(failed).add(key));
+    const item = this.items().find((entry) => (entry.id ?? entry.url) === key);
+    if (!item?.url) return;
+    void this.archive.mediaObjectUrl(item.url).then((local) => {
+      if (!local) return;
+      this.localUrls.update((map) => new Map(map).set(item.url, local));
+      this.failed.update((failed) => {
+        const next = new Set(failed);
+        next.delete(key);
+        return next;
+      });
+    });
   }
 }

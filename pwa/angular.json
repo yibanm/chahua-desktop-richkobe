@@ -34,7 +34,9 @@
                 "output": "i18n"
               }
             ],
-            "styles": ["src/styles.scss"]
+            "styles": [
+              "src/styles.scss"
+            ]
           },
           "configurations": {
             "production": {
@@ -70,7 +72,8 @@
               "sourceMap": false,
               "define": {
                 "CHAHUA_API_BASE": "'https://chahui.app/_api'",
-                "CHAHUA_DEV_BACKEND": "false"
+                "CHAHUA_DEV_BACKEND": "false",
+                "CHAHUA_APP_VERSION": "'chahua-desktop-richkobe'"
               }
             },
             "development": {
@@ -114,7 +117,15 @@
           "configurations": {
             "ci": {
               "watch": false,
-              "reporters": ["default", ["junit", { "outputFile": "test_output/unit.xml" }]]
+              "reporters": [
+                "default",
+                [
+                  "junit",
+                  {
+                    "outputFile": "test_output/unit.xml"
+                  }
+                ]
+              ]
             }
           }
         }

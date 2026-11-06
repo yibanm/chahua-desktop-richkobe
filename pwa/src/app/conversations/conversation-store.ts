@@ -181,6 +181,7 @@ export class ConversationStore {
         return false;
       }
       this.pageHidesMembershipMessages = hideMembershipMessages;
+      this.ingestPage(page.messages);
       this.currentPage.set(this.withLiveCursor(page));
       return true;
     } catch (error) {
@@ -241,6 +242,7 @@ export class ConversationStore {
       this.currentPage.update((value) => {
         if (!value) return value;
         const messages = mergeMessages(value.messages, this.applyPendingUpdates(page).messages);
+        this.ingestPage(messages);
         const updated = {
           ...value,
           chatSettings: page.chatSettings,
@@ -272,6 +274,8 @@ export class ConversationStore {
         isMembershipMessage(message))
     )
       return;
+    // 新消息实时入本地归档：防撤回的持久层数据源（update() 只走更新/删除事件，收不到新消息）
+    this.archive.ingest(message);
     if (!this.latestSeenId || message.id > this.latestSeenId) this.latestSeenId = message.id;
     // A live message cannot bridge a gap between historical messages and the present.
     if (!this.atLatest()) return;
@@ -280,6 +284,11 @@ export class ConversationStore {
       ...page,
       messages: mergeMessages(page.messages, [message]),
     });
+  }
+
+  /** 批量入本地归档：历史加载/合并/实时接收三条路径共用，防撤回持久层的数据源。 */
+  private ingestPage(messages: readonly MessageResponse[]): void {
+    for (const message of messages) this.archive.ingest(message);
   }
 
   private applyMessageChange(event: MessageChange) {
@@ -513,6 +522,7 @@ export class ConversationStore {
       await this.open();
       return;
     }
+    this.ingestPage(page.messages);
     this.currentPage.set({ ...page, newerCursor: lastId });
     // Fetch one batch. Any remaining gap is traversed by normal forward pagination.
     await this.load(PageDirection.Newer);
