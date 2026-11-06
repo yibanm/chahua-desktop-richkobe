@@ -47,7 +47,7 @@
         "description": ""
       },
       "pasteHint": "粘贴 JWT 令牌或带 token 的入口链接",
-      "pastePlaceholder": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiIs…",
+      "pastePlaceholder": "粘贴你的登录令牌",
       "pasteSubmit": "登录",
       "pasteInvalid": "内容无效：需要是带 token 的链接或 JWT 令牌",
       "manualLogin": "手动登录",

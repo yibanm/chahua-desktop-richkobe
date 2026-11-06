@@ -36,6 +36,12 @@ window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
 // 动态 import 不提升，保证上面的替换先于 ./main 的模块求值完成。
 await import('./main');
 
+// 前端日志落盘：登录/网络失败时 AI 直接读 %LOCALAPPDATA%/com.richkobe.chahuatauri/logs/ 定位，
+// 不靠用户截图猜（用户 2026-11-06 定的规矩）。
+void import('@tauri-apps/plugin-log')
+  .then((m) => m.attachLogger())
+  .catch(() => {});
+
 // 外链交给系统默认浏览器：壳内 WebView 没有 target="_blank" 出口，点击会静默失败。
 // 用 document 级委托一处覆盖所有 <a>（markdown 渲染的、模板里写死的都算），
 // 不逐个改上游组件。只拦外部 http(s)，应用内路由与 internal 链接（自带 preventDefault）不受影响。

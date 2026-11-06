@@ -30,13 +30,21 @@ const LOGIN_URL = 'https://chahui.app/main/shireyishunjian-telegram-api/chahua_l
  * 接口成功时返回 JWT 纯文本；失败返回 HTTP 401/403（凭证错）或其它状态码。
  */
 export async function loginWithCredentials(username: string, password: string): Promise<string> {
+  const started = Date.now();
   const response = await fetch(LOGIN_URL, {
     method: 'POST',
     headers: { Accept: 'text/plain' },
     body: new URLSearchParams({ username, password }),
   });
   const text = (await response.text()).trim();
-  if (!response.ok || !text) throw new DesktopLoginError(response.status, text || response.statusText);
+  // 登录链路落盘日志（不写凭证内容）：失败时 AI 直接读日志定位，不靠用户截图猜
+  const { info, error } = await import('@tauri-apps/plugin-log');
+  const ms = Date.now() - started;
+  if (!response.ok || !text) {
+    await error(`[login] credentials exchange failed: HTTP ${response.status} in ${ms}ms body="${text.slice(0, 80)}"`);
+    throw new DesktopLoginError(response.status, text || response.statusText);
+  }
+  await info(`[login] credentials exchange ok: HTTP ${response.status} in ${ms}ms, token length ${text.length}`);
   return text;
 }
 

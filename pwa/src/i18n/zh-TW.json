@@ -47,7 +47,7 @@
         "description": ""
       },
       "pasteHint": "貼上 JWT 權杖或帶 token 的進入連結",
-      "pastePlaceholder": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiIs…",
+      "pastePlaceholder": "貼上你的登入權杖",
       "pasteSubmit": "登入",
       "pasteInvalid": "內容無效：需要是帶 token 的連結或 JWT 權杖",
       "manualLogin": "手動登入",

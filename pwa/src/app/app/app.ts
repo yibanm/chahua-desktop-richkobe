@@ -295,6 +295,8 @@ export class App {
     this.pwaJwtFound.set(false);
     this.pwaScanError.set('stored-token-rejected');
     this.pwaJwtMissing.set(true);
+    // 同 submitPasswordLogin：失败后清理 transport，避免后台无限重连拖卡整机
+    this.session.logout();
   }
 
   /** 手动登录：展开令牌输入框并聚焦，供粘贴 CookieXport 导出的 JWT 或入口链接。 */
@@ -358,6 +360,9 @@ export class App {
       void this.router.navigateByUrl('/chats');
     } else {
       this.loginProgress.set(0);
+      // 失败必须 logout 清理：否则 transport 带着失效 reconnectToken 在后台无限重连，
+      // 每次重连都是一轮 TLS+CF 握手，低内存机器上直接把整机拖卡（用户实测「卡炸」）
+      this.session.logout();
     }
   }
 

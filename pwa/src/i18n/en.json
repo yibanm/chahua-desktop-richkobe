@@ -47,7 +47,7 @@
         "description": ""
       },
       "pasteHint": "Paste a JWT token or an entry link with a token",
-      "pastePlaceholder": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiIs...",
+      "pastePlaceholder": "Paste your sign-in token",
       "pasteSubmit": "Sign in",
       "pasteInvalid": "Invalid input: it must be a link with a token, or a JWT",
       "manualLogin": "Manual sign-in",

@@ -8,6 +8,7 @@
     "window-state:default",
     "notification:default",
     "opener:default",
+    "log:default",
     {
       "identifier": "http:default",
       "allow": [
