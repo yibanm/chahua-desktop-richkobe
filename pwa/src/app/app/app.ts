@@ -338,10 +338,11 @@ export class App {
     let token: string;
     let exchangeOk = false;
     try {
-      // 5 秒硬限只加在凭证交换这一步：PHP 接口秒级返回，卡住即网络问题
+      // 凭证交换限时 15 秒：实测官方接口本身耗时 2.7~5.05 秒（用户监测页双 UA 实测），
+      // 5 秒硬限会掐掉正常登录；15 秒仍保证「不会无限等」的原意
       token = await Promise.race([
         loginWithCredentials(username, password),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('login-timeout-5s')), 5000)),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('login-timeout-15s')), 15000)),
       ]);
       exchangeOk = true;
     } catch (error) {

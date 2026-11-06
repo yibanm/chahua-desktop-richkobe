@@ -50,7 +50,7 @@ export class DesktopLoginError extends Error {
  * 测试包用 release profile 构建（debug profile 无优化，低内存机器上卡）；
  * 标识只表「第几个测试包」，不表构建 profile。
  */
-export const DESKTOP_BUILD_TAG = 'b19';
+export const DESKTOP_BUILD_TAG = 'b20';
 
 /**
  * 读取浏览器 PWA 已保存的茶话登录态（Rust 侧只读扫描 Chromium Local Storage）。
@@ -140,13 +140,10 @@ interface VersionManifest {
 }
 
 // 版本信息走 raw 文件而非 GitHub API：实测镜像不能代理 api.github.com（ghfast/ghproxy 均 403），
-// 而 raw 通道经镜像可达（200）。多通道依次尝试，任一成功即用；全失败抛错由调用方记 Failed。
-// shortcut: 镜像列表写死三条，若某天全部失效需改为可配置或回退直连
-const VERSION_URLS = [
-  'https://ghfast.top/https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/main/version.json',
-  'https://ghproxy.net/https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/main/version.json',
-  'https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/main/version.json',
-];
+// 而 raw 直连实测可达（200）。
+// 注意：镜像前缀形式（ghfast.top/https://...）不是合法 URL pattern，写进 capabilities 会让
+// 整个 http scope 反序列化失败、所有业务请求抛错（v1.1.0 回归事故），故此处只留直连单通道。
+const VERSION_URLS = ['https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/main/version.json'];
 
 /**
  * 检查桌面客户端更新：拉取 version.json，版本号高于当前则返回新版本信息，否则返回 undefined。

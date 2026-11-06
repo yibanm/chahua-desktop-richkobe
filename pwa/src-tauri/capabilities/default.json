@@ -13,9 +13,7 @@
       "allow": [
         { "url": "https://chahui.app/*" },
         { "url": "https://chahua.app/*" },
-        { "url": "https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/*" },
-        { "url": "https://ghfast.top/https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/*" },
-        { "url": "https://ghproxy.net/https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/*" }
+        { "url": "https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/*" }
       ]
     }
   ]
