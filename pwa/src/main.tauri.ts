@@ -55,6 +55,25 @@ void import('./app/tauri/tauri-runtime')
 // 捕获阶段会抢在组件之前把预览劫持去浏览器（用户实测复现）；冒泡阶段先让组件处理，
 // 再用 defaultPrevented 跳过已被组件接管的点击。
 const { openExternalUrl } = await import('./app/tauri/tauri-runtime');
+// 捕获层委托（限 markdown 容器内）：markdown 渲染的外链锚点在上游组件层带 stopPropagation，
+// 冒泡阶段到不了 document（b16 改冒泡后外链回归死链）；捕获阶段先于组件气泡处理器执行，
+// 只拦外部 http(s) 且非 internal 的锚点，internal 链接留给组件自己的路由处理。
+document.addEventListener(
+  'click',
+  (event) => {
+    if (event.defaultPrevented) return;
+    const anchor = (event.target as Element | null)?.closest?.('app-message-text a[href], app-markdown-body a[href]');
+    if (!anchor) return;
+    const href = anchor.getAttribute('href') ?? '';
+    if (!/^https?:\/\//i.test(href) || /tauri\.localhost/i.test(href)) return;
+    if (anchor.hasAttribute('internal')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void openExternalUrl(href).catch(() => {});
+  },
+  true,
+);
+// 冒泡层委托（全局兜底）：处理无组件处理器的裸外链锚点；组件已接管的点击由 defaultPrevented 跳过
 document.addEventListener('click', (event) => {
   if (event.defaultPrevented) return;
   const anchor = (event.target as Element | null)?.closest?.('a[href]');
