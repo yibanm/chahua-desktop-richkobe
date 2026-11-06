@@ -137,13 +137,32 @@ export async function desktopAppVersion(): Promise<string | undefined> {
 interface VersionManifest {
   version?: string;
   releaseUrl?: string;
+  downloadUrl?: string;
 }
 
-// 版本信息走 raw 文件而非 GitHub API：实测镜像不能代理 api.github.com（ghfast/ghproxy 均 403），
-// 而 raw 直连实测可达（200）。
-// 注意：镜像前缀形式（ghfast.top/https://...）不是合法 URL pattern，写进 capabilities 会让
-// 整个 http scope 反序列化失败、所有业务请求抛错（v1.1.0 回归事故），故此处只留直连单通道。
-const VERSION_URLS = ['https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/main/version.json'];
+// 版本信息通道（用户要求「更新检查要对上镜像源」）：镜像前缀 → 镜像前缀 → 直连，依次尝试。
+// 实测（--noproxy）：ghfast/ghproxy 代理 raw 均 200，直连 200。
+// **走原生 XHR 而非 fetch**：fetch 被 monkey-patch 到 plugin-http，而镜像前缀 URL 不是合法
+// capabilities pattern（写进 allow 会让整个 http scope 反序列化失败，v1.1.0 事故）；
+// XHR 不经 capabilities，WebView 内核层 --no-proxy-server 直连，镜像本身是普通 HTTPS 主机。
+const VERSION_URLS = [
+  'https://ghfast.top/https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/main/version.json',
+  'https://ghproxy.net/https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/main/version.json',
+  'https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/main/version.json',
+];
+
+function xhrJson(url: string): Promise<VersionManifest> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url);
+    xhr.timeout = 15000;
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300 ? resolve(JSON.parse(xhr.responseText)) : reject(new Error(`HTTP ${xhr.status}`));
+    xhr.onerror = () => reject(new Error('network'));
+    xhr.ontimeout = () => reject(new Error('timeout'));
+    xhr.send();
+  });
+}
 
 /**
  * 检查桌面客户端更新：拉取 version.json，版本号高于当前则返回新版本信息，否则返回 undefined。
@@ -151,21 +170,16 @@ const VERSION_URLS = ['https://raw.githubusercontent.com/yibanm/chahua-desktop-r
  */
 export async function fetchDesktopUpdateInfo(
   currentVersion: string,
-): Promise<{ version: string; releaseUrl: string } | undefined> {
+): Promise<{ version: string; releaseUrl: string; downloadUrl?: string } | undefined> {
   let lastError: unknown;
   for (const url of VERSION_URLS) {
     try {
-      const response = await fetch(url, { cache: 'no-store' });
-      if (!response.ok) {
-        lastError = new Error(`HTTP ${response.status}`);
-        continue;
-      }
-      const manifest = (await response.json()) as VersionManifest;
+      const manifest = await xhrJson(url);
       const version = manifest.version;
       if (!version || compareVersions(version, currentVersion) <= 0) return undefined;
       const releaseUrl =
         manifest.releaseUrl ?? `https://github.com/yibanm/chahua-desktop-richkobe/releases/tag/v${version}`;
-      return { version, releaseUrl };
+      return { version, releaseUrl, downloadUrl: manifest.downloadUrl };
     } catch (error) {
       lastError = error;
     }

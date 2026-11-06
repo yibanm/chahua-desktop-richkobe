@@ -32,7 +32,9 @@ export class AppUpdates {
   private readonly dismissedVersion = signal<string | undefined>(undefined);
   private readonly interactive = signal(false);
   // 桌面壳没有 SW：更新信息来自仓库里的 version.json，新版本号与下载地址存这里
-  private readonly desktopUpdate = signal<{ version: string; releaseUrl: string } | undefined>(undefined);
+  private readonly desktopUpdate = signal<{ version: string; releaseUrl: string; downloadUrl?: string } | undefined>(
+    undefined,
+  );
   private pendingCheck?: Promise<UpdateCheckResult>;
   private download?: { hash: string; ready: ReplaySubject<boolean> };
   readonly supported = inject(APP_UPDATES_ENABLED) && (isTauri() || this.updates.isEnabled);
@@ -98,11 +100,11 @@ export class AppUpdates {
     }
   }
 
-  /** 桌面壳「立即更新」：用系统浏览器打开 Release 页下载安装包（壳内不能自替换 exe）。 */
+  /** 桌面壳「立即更新」：优先镜像直连安装包（国内可达），无则 Release 页；壳内不能自替换 exe。 */
   readonly openDesktopRelease = () => {
-    const url = this.desktopUpdate()?.releaseUrl;
-    if (!url) return;
-    void openExternalUrl(url).catch(() => {});
+    const update = this.desktopUpdate();
+    if (!update) return;
+    void openExternalUrl(update.downloadUrl ?? update.releaseUrl).catch(() => {});
   };
 
   readonly reload = async () => {

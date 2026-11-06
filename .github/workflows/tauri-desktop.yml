@@ -1,7 +1,8 @@
 name: Tauri Desktop Build
 
 # 阶段一（CLAUDE.md 0.11）：推 dev 分支或手动触发即构建，产物只上传为 workflow artifact；
-# 阶段二：推 v* 标签时，同一 job 末尾自动创建 GitHub Release 并附上合规命名的产物。
+# 阶段二：推 v* 标签时，release job 汇总全平台产物自动创建 GitHub Release。
+# 平台矩阵（用户 2026-11-07 指令）：Windows 安装版+便携版、macOS、Linux；安卓只出 arm64-v8a 与 armeabi-v7a。
 on:
   workflow_dispatch:
   push:
@@ -10,6 +11,7 @@ on:
     paths:
       - 'pwa/**'
       - 'CHANGELOG.md'
+      - 'version.json'
       - '.github/workflows/tauri-desktop.yml'
 
 # 同一分支的新推送取消旧运行，避免浪费额度
@@ -27,8 +29,21 @@ env:
 
 jobs:
   build:
-    name: Build Windows x64
-    runs-on: windows-latest
+    name: Build ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: windows-x64
+            bundles: nsis
+          - os: macos-latest
+            label: macos-arm64
+            bundles: dmg
+          - os: ubuntu-latest
+            label: linux-x64
+            bundles: deb,appimage
+    runs-on: ${{ matrix.os }}
     defaults:
       run:
         working-directory: pwa
@@ -48,6 +63,13 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Install Linux system dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
       # Rust 依赖缓存：key 绑定 Cargo.lock，命中可省 10+ 分钟编译
       - name: Cache Rust build
         uses: actions/cache@v6
@@ -56,25 +78,23 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             pwa/src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('pwa/src-tauri/Cargo.lock') }}
+          key: ${{ matrix.os }}-cargo-${{ hashFiles('pwa/src-tauri/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ matrix.os }}-cargo-
 
       - name: Cache npm
         uses: actions/cache@v6
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('pwa/package-lock.json') }}
+          key: ${{ matrix.os }}-npm-${{ hashFiles('pwa/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-npm-
+            ${{ matrix.os }}-npm-
 
       # npm ci 会触发 postinstall（emoji picker 代码生成），是构建必需步骤
       - name: Install frontend dependencies
         run: npm ci
 
       # 产物命名规范（CLAUDE.md 0.10）：软件名-版本-平台.扩展名
-      # 软件名固定为对外发布名 chahua-tauri（小写连字符）；productName 是中文界面名，
-      # 不能进产物文件名。版本一律从 tauri.conf.json 读取，杜绝版本不同步。
       - name: Resolve artifact naming
         id: naming
         shell: bash
@@ -84,83 +104,140 @@ jobs:
             const c = JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json", "utf8"));
             const name = "chahua-tauri";
             const version = c.version.replace(/^v/, "");
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `name=${name}\n`);
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup=${name}-${version}-windows-x64-setup.exe\n`);
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `portable=${name}-${version}-windows-x64-portable.zip\n`);
           '
-          echo "setup  -> ${{ steps.naming.outputs.setup }}"
-          echo "portable -> ${{ steps.naming.outputs.portable }}"
+          echo "version=${{ steps.naming.outputs.version }} label=${{ matrix.label }}"
 
-      # tauri-action 内部会执行 beforeBuildCommand（npm run build:tauri），
-      # 故此处不再单独跑前端构建，避免重复构建与产物覆盖。
-      # 本项目 API 地址写死在 angular.json 的 define 里、不依赖 CI 环境变量，
-      # 因此不存在「二次构建冲掉环境变量」的隐患（全局经验 2026-11-03 坑点 1）。
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: pwa
-          # 只构建 NSIS 安装包：MSI 体积大且用户场景不需要，省 CI 时间
-          args: --bundles nsis
-          # 阶段一不创建 Release，仅本地构建
+          args: --bundles ${{ matrix.bundles }}
           uploadWorkflowArtifacts: false
 
-      # 按规范重命名 NSIS 产物。
-      # 用 glob 定位而非硬编码文件名（全局经验 2026-11-03 坑点 3：产物名可能含本地化文字）
-      - name: Rename setup artifact
+      # 按规范重命名产物（glob 定位，产物名可能含本地化文字）
+      - name: Collect artifacts
         shell: bash
         run: |
           mkdir -p ../dist-release
-          found=$(find src-tauri/target/release/bundle/nsis -name '*setup*.exe' | head -1)
-          if [ -z "$found" ]; then
-            echo "::error::未找到 NSIS setup.exe，bundle 目录内容："
-            find src-tauri/target/release/bundle -type f || true
-            exit 1
-          fi
-          echo "找到: $found"
-          cp "$found" "../dist-release/${{ steps.naming.outputs.setup }}"
+          v="${{ steps.naming.outputs.version }}"
+          case "${{ matrix.label }}" in
+            windows-x64)
+              setup=$(find src-tauri/target/release/bundle/nsis -name '*setup*.exe' | head -1)
+              [ -n "$setup" ] || { echo "::error::未找到 NSIS setup.exe"; exit 1; }
+              cp "$setup" "../dist-release/chahua-tauri-${v}-windows-x64-setup.exe"
+              exe=$(find src-tauri/target/release -maxdepth 1 -name '*.exe' ! -name '*msi*' | head -1)
+              cd src-tauri/target/release && powershell -NoProfile -Command "Compress-Archive -Path '$(basename "$exe")' -DestinationPath '../../../../dist-release/chahua-tauri-${v}-windows-x64-portable.zip' -Force" && cd ../../..
+              ;;
+            macos-arm64)
+              dmg=$(find src-tauri/target/release/bundle/dmg -name '*.dmg' | head -1)
+              [ -n "$dmg" ] || { echo "::error::未找到 dmg"; exit 1; }
+              cp "$dmg" "../dist-release/chahua-tauri-${v}-macos-arm64.dmg"
+              ;;
+            linux-x64)
+              deb=$(find src-tauri/target/release/bundle/deb -name '*.deb' | head -1)
+              app=$(find src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -1)
+              [ -n "$deb" ] && cp "$deb" "../dist-release/chahua-tauri-${v}-linux-x64.deb"
+              [ -n "$app" ] && cp "$app" "../dist-release/chahua-tauri-${v}-linux-x64.AppImage"
+              ls ../dist-release || { echo "::error::未找到 deb/AppImage"; exit 1; }
+              ;;
+          esac
           ls -la ../dist-release
-
-      # 便携版：Tauri 把前端资源内嵌进单个 exe，压 zip 即为便携版
-      # （全局经验 2026-11-03 坑点 5：Tauri 便携版 = 单 exe，不需打包运行时目录）
-      # exe 文件名随 productName（中文），必须 glob 定位，不硬编码（坑点 3）
-      - name: Create portable zip
-        shell: pwsh
-        run: |
-          $exe = Get-ChildItem -Path "src-tauri/target/release" -Filter '*.exe' |
-            Where-Object { $_.Name -notmatch '^(msi|nsis)' } | Select-Object -First 1
-          if (-not $exe) {
-            Write-Error "未找到可执行文件"
-            Get-ChildItem -Recurse src-tauri/target/release -Filter '*.exe' | Select-Object FullName
-            exit 1
-          }
-          Write-Output ("找到 exe: " + $exe.Name)
-          Compress-Archive -Path $exe.FullName -DestinationPath "../dist-release/${{ steps.naming.outputs.portable }}" -Force
-          Get-ChildItem ../dist-release | Select-Object Name, Length
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: chahua-tauri-${{ steps.naming.outputs.version }}-windows-x64
+          name: artifacts-${{ matrix.label }}
           path: dist-release/
           if-no-files-found: error
           retention-days: 14
 
-      - name: Report sizes
+  android:
+    name: Build Android (arm64-v8a + armeabi-v7a)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pwa
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK + NDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 ndk;27.0.12077973'
+
+      - name: Cache npm
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: android-npm-${{ hashFiles('pwa/package-lock.json') }}
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build APKs (v7a + v8a only)
+        env:
+          TAURI_ANDROID_NDK_VERSION: '27.0.12077973'
+        run: npx tauri android build --apk --target aarch64-linux-android --target armv7-linux-androideabi
+
+      - name: Collect artifacts
         shell: bash
         run: |
-          echo "### 产物清单" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          ls -la ../dist-release/ >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p ../dist-release
+          v=$(node -e 'console.log(require("./src-tauri/tauri.conf.json").version)')
+          a64=$(find src-tauri/gen/android/app/build/outputs/apk -name '*arm64-v8a*.apk' | head -1)
+          a32=$(find src-tauri/gen/android/app/build/outputs/apk -name '*armeabi-v7a*.apk' | head -1)
+          [ -n "$a64" ] || { echo "::error::未找到 arm64 apk"; find src-tauri/gen/android/app/build/outputs -name '*.apk'; exit 1; }
+          [ -n "$a32" ] || { echo "::error::未找到 armv7 apk"; find src-tauri/gen/android/app/build/outputs -name '*.apk'; exit 1; }
+          cp "$a64" "../dist-release/chahua-tauri-${v}-android-arm64.apk"
+          cp "$a32" "../dist-release/chahua-tauri-${v}-android-armv7.apk"
+          ls -la ../dist-release
 
-      # 阶段二：仅标签推送时创建 Release（CLAUDE.md 0.11 第 2 条）。
-      # 说明文字从 CHANGELOG.md 抽当前版本段落，禁止把日志写死在这里（0.10 第 8 条）。
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: artifacts-android
+          path: dist-release/
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Create GitHub Release
+    needs: [build, android]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v7
+        with:
+          pattern: artifacts-*
+          path: dist-release
+          merge-multiple: true
+
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -168,9 +245,9 @@ jobs:
           ver="${tag#v}"
           # 发版前校验 version.json 与 tag 一致：更新检查靠仓库里的 version.json，
           # 若忘记同步，老客户端永远检测不到新版（更新闭环静默断裂）。不一致直接 fail。
-          manifest_ver=$(node -e 'console.log(require("../version.json").version)')
+          manifest_ver=$(node -e 'console.log(require("./version.json").version)')
           if [ "$manifest_ver" != "$ver" ]; then
-            echo "::error::version.json 的 version ($manifest_ver) 与 tag ($ver) 不一致，拒绝发布。请同步 version.json 后重新打 tag。"
+            echo "::error::version.json 的 version ($manifest_ver) 与 tag ($ver) 不一致，拒绝发布。"
             exit 1
           fi
           awk -v ver="$ver" '
@@ -178,12 +255,13 @@ jobs:
             $0 ~ "^## v" ver "([[:space:]]|$)" { p = 1; next }
             p && /^## / { exit }
             p { print }
-          ' ../CHANGELOG.md > notes.md
+          ' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then
             echo "::error::CHANGELOG.md 中未找到 ## v${ver} 段落，拒绝发布空说明"
             exit 1
           fi
-          gh release create "$tag" ../dist-release/* \
+          ls -la dist-release
+          gh release create "$tag" dist-release/* \
             --title "茶话桌面版 v${ver}" \
             --notes-file notes.md
           echo "Release: https://github.com/${{ github.repository }}/releases/tag/${tag}" >> "$GITHUB_STEP_SUMMARY"
