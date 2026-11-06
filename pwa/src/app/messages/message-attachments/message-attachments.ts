@@ -30,6 +30,7 @@ import { alertCircleOutline, documentAttachOutline, downloadOutline, playCircle 
 import { type MessageResponse, MessageType } from '../../../generated/models';
 import type { SnowflakeID } from '../../api/snowflake-id';
 import { openMediaViewer } from '../media-viewer/media-viewer';
+import { MessageArchive } from '../message-archive';
 import { MessageDelivery } from '../message-delivery';
 import { MessageStatus } from '../message-status/message-status';
 import { type AttachmentUpload, UploadStatus } from '../upload';
@@ -87,6 +88,11 @@ export type MessageAttachmentSource = Pick<MessageResponse, 'messageType' | 'cre
 })
 export class MessageAttachments {
   private readonly router = inject(Router);
+  private readonly archive = inject(MessageArchive);
+  // 媒体本地归档的 objectURL：presigned url 会过期，命中归档时用它展示
+  private readonly localUrls = signal<ReadonlyMap<string, string>>(new Map());
+  /** 显示源：优先本地归档，未命中回退原 url。 */
+  protected readonly srcOf = (url: string) => this.localUrls().get(url) ?? url;
   protected async view(key: SnowflakeID | string, event: Event) {
     event.preventDefault();
     if (this.message().messageType === MessageType.sticker) return;
@@ -173,6 +179,24 @@ export class MessageAttachments {
   protected readonly album = computed(() => {
     const items = this.items();
     return items.length > 1 && this.visual();
+  });
+  // 附件变化时异步查本地归档：presigned url 过期或被撤回后，媒体仍可从 IndexedDB 展示
+  protected readonly resolveLocalMedia = effect(() => {
+    const urls = this.items().map((item) => item.url).filter(Boolean);
+    if (!urls.length) return;
+    void Promise.all(urls.map((url) => this.archive.mediaObjectUrl(url).then((local) => [url, local] as const))).then(
+      (pairs) => {
+        const next = new Map(this.localUrls());
+        let changed = false;
+        for (const [url, local] of pairs) {
+          if (local && next.get(url) !== local) {
+            next.set(url, local);
+            changed = true;
+          }
+        }
+        if (changed) this.localUrls.set(next);
+      },
+    );
   });
   /** Images and videos stretch with the bubble; audio and files keep their own width. */
   protected readonly visual = computed(() =>

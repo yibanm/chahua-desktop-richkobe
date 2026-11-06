@@ -20,6 +20,7 @@ import { ChatChangeKind, ChatStore } from '../chats/chat-store';
 import { type SnowflakeID } from '../api/snowflake-id';
 import { type MessageChange } from '../messages/message-change';
 import { mergeMessages } from '../messages/message-merge';
+import { MessageArchive } from '../messages/message-archive';
 import { isVisibleMessage } from '../messages/message-visibility';
 import { preserveReactionOwnership } from '../messages/reaction-state';
 export enum PageDirection {
@@ -43,6 +44,7 @@ export class ConversationStore {
   private readonly api = inject(RpcApi);
   private readonly session = inject(SessionStore);
   private readonly preferences = inject(Preferences);
+  private readonly archive = inject(MessageArchive);
   private readonly destroyRef = inject(DestroyRef);
   private version = 0;
   private readonly cancel = new Subject<void>();
@@ -333,8 +335,25 @@ export class ConversationStore {
 
   update(message: MessageResponse) {
     if (!this.accepts(message)) return;
-    if (message.isDeleted) this.deletedIds.add(message.id);
-    else this.editedPreviews.set(message.id, toMessagePreview(message));
+    if (message.isDeleted) {
+      this.deletedIds.add(message.id);
+      // 防撤回开启时从本地归档还原文字：上游不存本地、重拉即得空内容，
+      // 归档是唯一能拿回原文的来源（含跨会话重进与重启后）
+      if (this.preferences.antiRecallEnabled()) {
+        void this.archive.restore(message.id).then((archived) => {
+          if (!archived || !this.items().some((item) => item.id === message.id)) return;
+          this.patch(message.id, (current) => ({
+            ...archived,
+            isDeleted: true,
+            reactions: current.reactions,
+          }));
+        });
+      }
+    } else {
+      // 本地归档常开（与防撤回开关无关）：卸载不清数据即永存，是防撤回的持久层
+      this.archive.ingest(message);
+      this.editedPreviews.set(message.id, toMessagePreview(message));
+    }
     const known = this.items().find((item) => item.id === message.id);
     this.patch(message.id, (current) => ({
       ...message,
@@ -356,6 +375,13 @@ export class ConversationStore {
       mentions: [],
       sticker: undefined,
     }));
+    // 防撤回开启时同 update()：从本地归档还原文字
+    if (this.preferences.antiRecallEnabled()) {
+      void this.archive.restore(messageId).then((archived) => {
+        if (!archived || !this.items().some((item) => item.id === messageId)) return;
+        this.patch(messageId, (current) => ({ ...archived, isDeleted: true, reactions: current.reactions }));
+      });
+    }
   }
 
   updateReactions(messageId: SnowflakeID, reactions: ReactionSummary[]) {
