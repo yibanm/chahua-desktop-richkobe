@@ -36,16 +36,14 @@ window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
 // 动态 import 不提升，保证上面的替换先于 ./main 的模块求值完成。
 await import('./main');
 
-// 前端日志无需额外挂载：@tauri-apps/plugin-log 的 info/error 直接经 IPC 落到
-// Rust 侧 tauri-plugin-log 的文件（%LOCALAPPDATA%/com.richkobe.chahuatauri/logs/）。
-// 登录/网络失败时 AI 直接读该文件定位，不靠用户截图猜（用户 2026-11-06 定的规矩）。
+// 前端日志落盘走自定义 Rust 命令 frontend_log（tauri-runtime 的 logInfo/logError）。
+// @tauri-apps/plugin-log 的前端 info/error 在本壳内实测不落文件（b9 启动后日志零新行），弃用。
+// 登录/网络失败时 AI 直接读 %LOCALAPPDATA%/com.richkobe.chahuatauri/logs/ 定位，不靠截图猜。
 // 构建自标识：每次出测试包改 tauri-runtime 的 DESKTOP_BUILD_TAG，启动即落日志，
 // 用于确认用户跑的到底是哪个包（此前出现过日志全空=跑的旧包的误判）。
-void import('@tauri-apps/plugin-log')
-  .then(async (m) => {
-    const { DESKTOP_BUILD_TAG } = await import('./app/tauri/tauri-runtime');
-    await m.info(`[boot] build=${DESKTOP_BUILD_TAG} ua=${navigator.userAgent.slice(0, 60)}`);
-  })
+// 走自定义 frontend_log 命令：plugin-log 前端 API 实测不落文件。
+void import('./app/tauri/tauri-runtime')
+  .then((m) => m.logInfo(`[boot] build=${m.DESKTOP_BUILD_TAG} ua=${navigator.userAgent.slice(0, 60)}`))
   .catch(() => {});
 
 // 外链交给系统默认浏览器：壳内 WebView 没有 target="_blank" 出口，点击会静默失败。

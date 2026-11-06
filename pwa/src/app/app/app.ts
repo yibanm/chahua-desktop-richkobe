@@ -341,8 +341,8 @@ export class App {
       ]);
     } catch (error) {
       // 落盘失败类别：凭证错 / 5 秒超时 / fetch 抛错 / 其它——无日志时这三者无法区分
-      void import('@tauri-apps/plugin-log').then((m) =>
-        m.error(
+      void import('../tauri/tauri-runtime').then((m) =>
+        m.logError(
           `[login] submitPasswordLogin failed: ${
             error instanceof DesktopLoginError
               ? `HTTP ${error.status} ${error.detail.slice(0, 80)}`

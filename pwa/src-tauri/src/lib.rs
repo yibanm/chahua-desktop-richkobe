@@ -2,10 +2,23 @@ use tauri::Manager;
 
 mod pwa_token;
 
+/// 前端日志落盘通道：@tauri-apps/plugin-log 的前端 info/error 在本壳内未落到文件
+/// （实测 b9 启动后日志无任何新行），改用自定义命令走 Rust 侧 log 宏——
+/// 与 pwa_token 同一通道，已证实可写入 %LOCALAPPDATA%/.../logs/茶话.log。
+/// 自定义应用命令不需要 capabilities 权限条目。
+#[tauri::command]
+fn frontend_log(level: String, message: String) {
+    match level.as_str() {
+        "error" => log::error!("[web] {message}"),
+        "warn" => log::warn!("[web] {message}"),
+        _ => log::info!("[web] {message}"),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![pwa_token::read_pwa_jwt])
+        .invoke_handler(tauri::generate_handler![pwa_token::read_pwa_jwt, frontend_log])
         // 单实例必须最先注册：第二个实例启动时把焦点交回已有窗口后直接退出。
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
