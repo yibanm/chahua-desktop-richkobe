@@ -277,13 +277,10 @@ export class App {
       this.session.adoptToken(token);
       this.loginProgress.set(0.6);
       try {
-        // 登录限时 5 秒（用户要求）：超时按失败处理，给出导出引导而非无限转圈
-        await Promise.race([
-          this.initialize(),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('login-timeout-5s')), 5000),
-          ),
-        ]);
+        // 连接初始化不套 5 秒硬限：WS 冷握手实测数秒，掐掉会把有效令牌误判失效
+        // （用户实测正确密码登录失败即此因）。5 秒限保留在凭证交换/本地扫描步骤。
+        // initialize 自带 30 秒 deadline + Slow 自动重试，不会无限转圈。
+        await this.initialize();
         if (this.session.user()) {
           this.loginProgress.set(1);
           // 登录成功统一落聊天列表：入口链接可能带邀请路径，用户要求不弹群
@@ -291,7 +288,7 @@ export class App {
           return;
         }
       } catch {
-        // 该候选已失效（吊销/过期/超时），继续试下一个
+        // 该候选已失效（吊销/过期），继续试下一个
       }
     }
     this.loginProgress.set(0);
@@ -332,30 +329,35 @@ export class App {
     this.passwordBusy.set(true);
     this.passwordError.set('');
     this.loginProgress.set(0.35);
+    let token: string;
     try {
-      const token = await loginWithCredentials(username, password);
-      this.passwordValue.set('');
-      this.session.adoptToken(token);
-      this.loginProgress.set(0.6);
-      await Promise.race([
-        this.initialize(),
+      // 5 秒硬限只加在凭证交换这一步（用户裁定）：PHP 接口秒级返回，卡住即网络问题
+      token = await Promise.race([
+        loginWithCredentials(username, password),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('login-timeout-5s')), 5000)),
       ]);
-      if (this.session.user()) {
-        this.loginProgress.set(1);
-        void this.router.navigateByUrl('/chats');
-        return;
-      }
-      this.loginProgress.set(0);
-      this.passwordError.set('failed');
     } catch (error) {
       this.passwordValue.set('');
+      this.passwordBusy.set(false);
       this.loginProgress.set(0);
       this.passwordError.set(
         error instanceof DesktopLoginError && [401, 403].includes(error.status) ? 'credentials' : 'failed',
       );
-    } finally {
-      this.passwordBusy.set(false);
+      return;
+    }
+    this.passwordValue.set('');
+    this.session.adoptToken(token);
+    this.loginProgress.set(0.6);
+    // 连接初始化不再套 5 秒限：WS 冷握手实测可达数秒，掐掉会把正确密码误判为登录失败
+    // （用户实测复现）。令牌已落盘，本轮慢/失败可由 Slow 态自动重试或下次启动恢复。
+    // initialize 自带 30 秒 deadline 与错误态展示，不会无限转圈。
+    await this.initialize();
+    this.passwordBusy.set(false);
+    if (this.session.user()) {
+      this.loginProgress.set(1);
+      void this.router.navigateByUrl('/chats');
+    } else {
+      this.loginProgress.set(0);
     }
   }
 

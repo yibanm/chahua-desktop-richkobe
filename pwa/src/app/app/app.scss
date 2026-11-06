@@ -81,9 +81,13 @@ ion-split-pane {
   font-variant-numeric: tabular-nums;
 }
 
-// ion-input 的 outline fill 需要显式给容器描边，否则在深色主题下不可见
+// ion-input 的 outline fill 需要显式给容器描边，否则在深色主题下不可见。
+// 背景手动设成白色后，前景必须同批改深色：Ionic 默认字色跟随暗色主题是白色，
+// 白底白字会完全看不见输入内容（用户实测复现，已多次犯同类错）。
 .entry-paste-input {
   --background: var(--ion-color-step-50, #ffffff);
+  --color: #111111;
+  --placeholder-color: #767676;
   --border-color: var(--ion-color-step-300, #999999);
   --border-radius: 8px;
   --border-width: 1px;
