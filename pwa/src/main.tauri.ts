@@ -25,6 +25,8 @@ import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 
 const nativeFetch = window.fetch.bind(window);
 
+// 绕系统代理在 Rust 侧做（setup 里设 NO_PROXY=*，reqwest 系统代理匹配器读该环境变量全排除=直连），
+// JS 层不传 proxy 参数：b22 实测传 proxy 参数会导致前端入口模块跑不完（无 boot 日志行），已回退。
 window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
   const isLocal = !/^https?:\/\//i.test(url) || /tauri\.localhost/i.test(url);

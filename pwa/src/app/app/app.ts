@@ -209,6 +209,8 @@ export class App {
     this.loading.set(true);
     this.slow.set(false);
     this.error.set(undefined);
+    // 启动链日志点：自测/排障时从 weblog 直接看 initialize 走到哪一步卡住
+    void import('../tauri/tauri-runtime').then((m) => m.logInfo(`[init] start epoch=${epoch}`));
     this.slowTimer = setTimeout(() => {
       this.slow.set(true);
       // 桌面壳：Slow 态自动重试一次初始化，免去用户手动点「刷新」（官方 web 版
@@ -224,8 +226,14 @@ export class App {
     }, 10000);
     try {
       await this.session.initialize();
+      void import('../tauri/tauri-runtime').then((m) =>
+        m.logInfo(`[init] ok epoch=${epoch} user=${this.session.user() ? 'yes' : 'no'}`),
+      );
       if (epoch === this.initializationEpoch && this.session.user()) this.notifications.start();
     } catch (error) {
+      void import('../tauri/tauri-runtime').then((m) =>
+        m.logError(`[init] failed epoch=${epoch}: ${error instanceof Error ? error.message : String(error)}`),
+      );
       if (epoch !== this.initializationEpoch) return;
       this.error.set(
         error instanceof TimeoutError || error instanceof RpcTransportError

@@ -40,6 +40,11 @@ pub fn run() {
     // 说明 tauri-plugin-log 的文件通道本身坏了（而非前端调用链问题）。
     // 注意：此行在 log 插件注册之前执行，可能不进文件——故 setup 内再补一行。
     log::info!("[rust] run() entered");
+    // 绕开系统代理（本机 127.0.0.1:7897 间歇性卡顿会挂死整壳请求，实测直连中位 406ms/0 失败、
+    // 走代理中位 1.8s 有尖刺）。reqwest 的系统代理匹配器读 NO_PROXY 环境变量，"*" 排除全部域名=直连。
+    // 必须在任何插件/请求之前设置。壳内访问域均实测直连可达；论坛域只经系统浏览器，不经壳。
+    std::env::set_var("NO_PROXY", "*");
+    std::env::set_var("no_proxy", "*");
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_notification::init())
