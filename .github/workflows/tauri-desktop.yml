@@ -198,7 +198,8 @@ jobs:
       - name: Build APKs (v7a + v8a only)
         env:
           TAURI_ANDROID_NDK_VERSION: '27.0.12077973'
-        run: npx tauri android build --apk --target aarch64-linux-android --target armv7-linux-androideabi
+        # tauri CLI 的 --target 只收短名（aarch64/armv7/i686/x86_64），写完整 rust triple 会报 invalid value
+        run: npx tauri android build --apk --target aarch64 --target armv7
 
       - name: Collect artifacts
         shell: bash

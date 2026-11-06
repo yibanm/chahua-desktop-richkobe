@@ -31,14 +31,16 @@ import { PanelNavigation } from '../../navigation/panel-navigation';
 import { AppUpdates, UpdateCheckResult } from '../../pwa/app-updates';
 import { ContentScrollbars } from '../../scrolling/content-scrollbars';
 import { devBackendEnabled, SessionStore } from '../../session/session-store';
-import { isTauri, openExternalUrl } from '../../tauri/tauri-runtime';
+import { isAndroidShell, isTauri, openExternalUrl } from '../../tauri/tauri-runtime';
 import { localeLabels } from '../locale';
 import { Preferences } from '../preferences';
 
 // 论坛（Discuz）头像设置页：后端无用户头像写接口，头像由论坛侧维护
 const AVATAR_PAGE_URL = 'https://www.shireyishunjian.com/main/home.php?mod=spacecp&ac=avatar';
-// 本项目源代码仓库（AGPL-3.0：改造后分发须公开全部改动）
-const SOURCE_REPO_URL = 'https://github.com/yibanm/chahua-desktop-richkobe';
+// 本项目源代码仓库（AGPL-3.0：改造后分发须公开全部改动）；安卓构建指向安卓仓库（用户 2026-11-07 指令）
+const SOURCE_REPO_URL = isAndroidShell()
+  ? 'https://github.com/yibanm/chahua-android-richkobe'
+  : 'https://github.com/yibanm/chahua-desktop-richkobe';
 
 @Component({
   selector: 'app-settings',
