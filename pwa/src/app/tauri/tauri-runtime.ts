@@ -10,6 +10,40 @@ export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+/** 是否运行在 Tauri 安卓壳内（UA 含 Android；桌面 WebView2 不含）。 */
+export function isAndroidShell(): boolean {
+  return isTauri() && /android/i.test(navigator.userAgent);
+}
+
+// 论坛账号密码换 JWT 的接口（与原安卓仓库同一端点）。挂在 chahui.app 下直连可达。
+// 安卓端必须保留此登录方式：手机读不到浏览器 leveldb，一键登录路线在安卓不存在。
+const LOGIN_URL = 'https://chahui.app/main/shireyishunjian-telegram-api/chahua_login.php';
+
+/**
+ * 用论坛账号密码登录，换取 JWT（返回纯文本 token）。
+ * 密码只在内存中传给接口，不落盘、不写日志、不进 localStorage。
+ */
+export async function loginWithCredentials(username: string, password: string): Promise<string> {
+  const response = await fetch(LOGIN_URL, {
+    method: 'POST',
+    headers: { Accept: 'text/plain' },
+    body: new URLSearchParams({ username, password }),
+  });
+  const text = (await response.text()).trim();
+  if (!response.ok || !text) throw new DesktopLoginError(response.status, text || response.statusText);
+  return text;
+}
+
+/** 登录接口失败：带 HTTP 状态码，供调用方区分「凭证错」与「网络/服务异常」。 */
+export class DesktopLoginError extends Error {
+  constructor(
+    readonly status: number,
+    readonly detail: string,
+  ) {
+    super(`login failed: HTTP ${status} ${detail}`);
+  }
+}
+
 /**
  * 测试包构建标识：每次出测试包递增（b8→b9…），显示在入口页底部并写入启动日志。
  * 用途=确认用户实际运行的是哪个包，避免拿旧包的现象当新包的 bug 排查。

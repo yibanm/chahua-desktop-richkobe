@@ -105,6 +105,11 @@ ion-split-pane {
   min-height: 44px;
 }
 
+// 账号密码表单第二个输入框（密码）与用户名框之间留间距
+.entry-paste-input--second {
+  margin-top: 10px;
+}
+
 .entry-paste-error {
   color: var(--ion-color-danger);
   font-size: 13px;

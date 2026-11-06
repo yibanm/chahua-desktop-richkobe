@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "src/app/app/app.html"
+        ],
+        "createdAt": "2026-11-06T10:29:32.331Z",
+        "reason": "false positive: img uses Angular NgOptimizedImage ngSrc (src injected at runtime); asset public/icon/pwa-192x192.png exists on disk; upstream pattern"
+      }
+    ]
+  }
+}

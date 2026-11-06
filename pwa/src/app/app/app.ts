@@ -31,7 +31,7 @@ import { filter, map, TimeoutError } from 'rxjs';
 import { ChatLink } from '../chats/chat-link/chat-link';
 import { ChatList } from '../chats/chat-list/chat-list';
 import { listSelection, ListTab, type ListSelection } from '../chats/list-tabs';
-import { DESKTOP_BUILD_TAG, isTauri, readPwaJwt } from '../tauri/tauri-runtime';
+import { DESKTOP_BUILD_TAG, isAndroidShell, isTauri, loginWithCredentials, DesktopLoginError, readPwaJwt } from '../tauri/tauri-runtime';
 import { PanelNavigation } from '../navigation/panel-navigation';
 import { AppUpdates } from '../pwa/app-updates';
 import { NotificationPrompt } from '../pwa/notification-prompt/notification-prompt';
@@ -119,6 +119,16 @@ export class App {
   // 命中即提示「已识别到 PWA 的登录信息，自动登录」；未命中引导用户用 CookieXport 导出后粘贴。
   protected readonly showDesktopLogin = isTauri();
   protected readonly buildTag = DESKTOP_BUILD_TAG;
+  // 安卓壳专属：手机读不到浏览器 leveldb，一键登录路线不存在（移动端未注册 read_pwa_jwt），
+  // 必须保留账号密码登录；一键登录按钮在安卓隐藏
+  protected readonly showAndroidLogin = isAndroidShell();
+  protected readonly showOneClick = isTauri() && !isAndroidShell();
+  protected readonly showPasswordBox = signal(false);
+  protected readonly passwordUsername = signal('');
+  protected readonly passwordValue = signal('');
+  protected readonly passwordError = signal('');
+  protected readonly passwordBusy = signal(false);
+  @ViewChild('passwordInput') protected readonly passwordInput?: IonInput;
   protected readonly showPasteBox = signal(false);
   protected readonly entryLink = signal('');
   protected readonly entryLinkInvalid = signal(false);
@@ -295,10 +305,69 @@ export class App {
 
   /** 手动登录：展开令牌输入框并聚焦，供粘贴 CookieXport 导出的 JWT 或入口链接。 */
   protected manualLogin() {
+    this.showPasswordBox.set(false);
     this.showPasteBox.set(true);
     this.entryLinkInvalid.set(false);
     // 等一帧让输入框渲染完成再聚焦
     setTimeout(() => void this.tokenInput?.setFocus(), 0);
+  }
+
+  /** 账号密码登录（安卓壳）：展开表单并聚焦用户名框。论坛账号，与原安卓端同一接口。 */
+  protected passwordLogin() {
+    this.showPasteBox.set(false);
+    this.passwordError.set('');
+    this.showPasswordBox.set(true);
+    setTimeout(() => void this.passwordInput?.setFocus(), 0);
+  }
+
+  /**
+   * 提交账号密码：换取 JWT 后复用既有采纳与初始化流程，落聊天列表。
+   * 密码只存在组件信号里，提交后即清空，不落 localStorage、不进日志。
+   */
+  protected async submitPasswordLogin() {
+    if (this.passwordBusy()) return;
+    const username = this.passwordUsername().trim();
+    const password = this.passwordValue();
+    if (!username || !password) {
+      this.passwordError.set('empty');
+      return;
+    }
+    this.passwordBusy.set(true);
+    this.passwordError.set('');
+    this.loginProgress.set(0.35);
+    let token: string;
+    let exchangeOk = false;
+    try {
+      // 5 秒硬限只加在凭证交换这一步：PHP 接口秒级返回，卡住即网络问题
+      token = await Promise.race([
+        loginWithCredentials(username, password),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('login-timeout-5s')), 5000)),
+      ]);
+      exchangeOk = true;
+    } catch (error) {
+      this.passwordValue.set('');
+      this.passwordBusy.set(false);
+      this.loginProgress.set(0);
+      this.passwordError.set(
+        error instanceof DesktopLoginError && [401, 403].includes(error.status) ? 'credentials' : 'failed',
+      );
+      return;
+    }
+    this.passwordValue.set('');
+    this.session.adoptToken(token);
+    this.loginProgress.set(0.6);
+    // 连接初始化不套硬限：冷握手可达数秒，掐掉会把正确凭证误判失败
+    await this.initialize();
+    this.passwordBusy.set(false);
+    if (this.session.user()) {
+      this.loginProgress.set(1);
+      void this.router.navigateByUrl('/chats');
+    } else if (!exchangeOk) {
+      this.loginProgress.set(0);
+      this.session.logout();
+    } else {
+      this.loginProgress.set(0);
+    }
   }
 
   /**

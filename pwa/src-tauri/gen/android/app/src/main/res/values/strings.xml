@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">"茶话科比版"</string>
+    <string name="main_activity_title">"茶话科比版"</string>
+    <string name="channel_keepalive_name">"后台连接"</string>
+    <string name="channel_keepalive_desc">"保持茶话在线的常驻通知，低打扰"</string>
+    <string name="channel_messages_name">"消息通知"</string>
+    <string name="channel_messages_desc">"新消息提醒，带横幅与铃声"</string>
+    <string name="keepalive_title">"茶话科比版运行中"</string>
+    <string name="keepalive_text">"保持在线以接收新消息"</string>
+    <string name="permission_rationale_notifications">"用于接收新消息提醒"</string>
+    <string name="permission_rationale_battery">"允许后台运行后，锁屏或切走应用时仍能收到消息"</string>
+</resources>

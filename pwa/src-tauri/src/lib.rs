@@ -1,7 +1,5 @@
 use tauri::Manager;
 
-mod pwa_token;
-
 /// 前端日志落盘通道：@tauri-apps/plugin-log 的前端 info/error 在本壳内未落到文件
 /// （实测 b9 启动后日志无任何新行），改用自定义命令走 Rust 侧 log 宏——
 /// 与 pwa_token 同一通道，已证实可写入 %LOCALAPPDATA%/.../logs/茶话.log。
@@ -33,25 +31,19 @@ fn append_weblog(app: &tauri::AppHandle, line: &str) {
     }
 }
 
+#[cfg(not(mobile))]
+mod pwa_token;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 诊断行：不依赖前端/IPC/插件顺序，run() 一进就写。若日志里连这行都没有，
     // 说明 tauri-plugin-log 的文件通道本身坏了（而非前端调用链问题）。
     // 注意：此行在 log 插件注册之前执行，可能不进文件——故 setup 内再补一行。
     log::info!("[rust] run() entered");
-    tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![pwa_token::read_pwa_jwt, frontend_log])
-        // 单实例必须最先注册：第二个实例启动时把焦点交回已有窗口后直接退出。
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
-        }))
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
             // release 也落盘日志：用户反馈问题时可直接提供日志文件定位
             app.handle().plugin(
@@ -61,7 +53,22 @@ pub fn run() {
             )?;
             log::info!("[rust] log plugin registered in setup");
             Ok(())
-        })
+        });
+    // 桌面专属：单实例、窗口状态、读浏览器登录态（扫 Windows 路径，移动端无意义）
+    #[cfg(not(mobile))]
+    let builder = builder
+        .invoke_handler(tauri::generate_handler![pwa_token::read_pwa_jwt, frontend_log])
+        // 单实例必须最先注册：第二个实例启动时把焦点交回已有窗口后直接退出。
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_window_state::Builder::default().build());
+    #[cfg(mobile)]
+    let builder = builder.invoke_handler(tauri::generate_handler![frontend_log]);
+    builder
         .run(tauri::generate_context!())
         .expect("error while building tauri application");
 }

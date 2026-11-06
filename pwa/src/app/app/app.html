@@ -44,15 +44,22 @@
             <div class="entry-paste">
               <!-- 测试包构建标识：确认用户跑的哪个包，排查时第一证据 -->
               <p class="entry-build-tag">{{ buildTag }}</p>
-              <ion-button class="entry-paste-button entry-paste-button--primary" expand="block" [disabled]="pwaScanning()" (click)="oneClickLogin()">
-                @if (pwaScanning()) {
-                  <ion-spinner slot="start" />
-                }
-                {{ pwaScanning() ? ('app.entry.scanning' | transloco) : ('app.entry.oneClick' | transloco) }}
-              </ion-button>
+              @if (showOneClick) {
+                <ion-button class="entry-paste-button entry-paste-button--primary" expand="block" [disabled]="pwaScanning()" (click)="oneClickLogin()">
+                  @if (pwaScanning()) {
+                    <ion-spinner slot="start" />
+                  }
+                  {{ pwaScanning() ? ('app.entry.scanning' | transloco) : ('app.entry.oneClick' | transloco) }}
+                </ion-button>
+              }
               <ion-button class="entry-paste-button" expand="block" fill="outline" [disabled]="pwaScanning()" (click)="manualLogin()">
                 {{ 'app.entry.manualLogin' | transloco }}
               </ion-button>
+              @if (showAndroidLogin) {
+                <ion-button class="entry-paste-button" expand="block" fill="outline" [disabled]="pwaScanning()" (click)="passwordLogin()">
+                  {{ 'app.entry.passwordLogin' | transloco }}
+                </ion-button>
+              }
               @if (pwaJwtFound()) {
                 <p class="entry-paste-hint entry-paste-hint--ok">{{ 'app.entry.pwaFound' | transloco }}</p>
               }
@@ -85,6 +92,50 @@
                 }
                 <ion-button class="entry-paste-button" expand="block" (click)="submitEntryLink()">
                   {{ 'app.entry.pasteSubmit' | transloco }}
+                </ion-button>
+              }
+              @if (showPasswordBox()) {
+                <p class="entry-paste-hint">{{ 'app.entry.passwordHint' | transloco }}</p>
+                <ion-input
+                  #passwordInput
+                  class="entry-paste-input"
+                  fill="outline"
+                  [value]="passwordUsername()"
+                  (ionInput)="passwordUsername.set($any($event.target).value ?? ''); passwordError.set('')"
+                  [placeholder]="'app.entry.passwordUsername' | transloco"
+                  [clearOnEdit]="false"
+                  autocomplete="username"
+                  type="text" />
+                <ion-input
+                  class="entry-paste-input entry-paste-input--second"
+                  fill="outline"
+                  [value]="passwordValue()"
+                  (ionInput)="passwordValue.set($any($event.target).value ?? ''); passwordError.set('')"
+                  (keyup.enter)="submitPasswordLogin()"
+                  [placeholder]="'app.entry.passwordField' | transloco"
+                  [clearOnEdit]="false"
+                  autocomplete="current-password"
+                  type="password" />
+                @if (passwordError()) {
+                  <p class="entry-paste-error">
+                    {{
+                      (passwordError() === 'credentials'
+                        ? 'app.entry.passwordWrong'
+                        : passwordError() === 'empty'
+                          ? 'app.entry.passwordEmpty'
+                          : 'app.entry.passwordFailed') | transloco
+                    }}
+                  </p>
+                }
+                <ion-button
+                  class="entry-paste-button entry-paste-button--primary"
+                  expand="block"
+                  [disabled]="passwordBusy()"
+                  (click)="submitPasswordLogin()">
+                  @if (passwordBusy()) {
+                    <ion-spinner slot="start" />
+                  }
+                  {{ 'app.entry.passwordSubmit' | transloco }}
                 </ion-button>
               }
             </div>
