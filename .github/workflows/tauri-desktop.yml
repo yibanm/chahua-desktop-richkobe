@@ -185,7 +185,7 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           # compileSdk/targetSdk 由 tauri android init 生成为 37，装 35 会构建失败
-          packages: 'platform-tools platforms;android-37 build-tools;37.0.0 ndk;27.0.12077973'
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0 ndk;27.0.12077973'
 
       - name: Cache npm
         uses: actions/cache@v6
