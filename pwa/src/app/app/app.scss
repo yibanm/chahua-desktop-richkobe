@@ -45,6 +45,14 @@ ion-split-pane {
   margin-top: 12px;
 }
 
+// 测试包构建标识：小字灰显，不影响主界面观感
+.entry-build-tag {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: var(--ion-color-medium);
+  text-align: right;
+}
+
 .entry-paste {
   margin-top: 16px;
   text-align: left;

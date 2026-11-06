@@ -39,6 +39,14 @@ await import('./main');
 // 前端日志无需额外挂载：@tauri-apps/plugin-log 的 info/error 直接经 IPC 落到
 // Rust 侧 tauri-plugin-log 的文件（%LOCALAPPDATA%/com.richkobe.chahuatauri/logs/）。
 // 登录/网络失败时 AI 直接读该文件定位，不靠用户截图猜（用户 2026-11-06 定的规矩）。
+// 构建自标识：每次出测试包改 tauri-runtime 的 DESKTOP_BUILD_TAG，启动即落日志，
+// 用于确认用户跑的到底是哪个包（此前出现过日志全空=跑的旧包的误判）。
+void import('@tauri-apps/plugin-log')
+  .then(async (m) => {
+    const { DESKTOP_BUILD_TAG } = await import('./app/tauri/tauri-runtime');
+    await m.info(`[boot] build=${DESKTOP_BUILD_TAG} ua=${navigator.userAgent.slice(0, 60)}`);
+  })
+  .catch(() => {});
 
 // 外链交给系统默认浏览器：壳内 WebView 没有 target="_blank" 出口，点击会静默失败。
 // 用 document 级委托一处覆盖所有 <a>（markdown 渲染的、模板里写死的都算），

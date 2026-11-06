@@ -11,6 +11,12 @@ export function isTauri(): boolean {
 }
 
 /**
+ * 测试包构建标识：每次出 debug 包递增（debug8→debug9…），显示在入口页底部并写入启动日志。
+ * 用途=确认用户实际运行的是哪个包，避免拿旧包的现象当新包的 bug 排查。
+ */
+export const DESKTOP_BUILD_TAG = 'debug9';
+
+/**
  * 读取浏览器 PWA 已保存的茶话登录态（Rust 侧只读扫描 Chromium Local Storage）。
  * 返回 JWT 候选列表（可能含历史版本），由调用方按 iat 取最新并验活。
  * 动态 import：Web 构建永远不会执行此路径。
@@ -30,15 +36,22 @@ const LOGIN_URL = 'https://chahui.app/main/shireyishunjian-telegram-api/chahua_l
  * 接口成功时返回 JWT 纯文本；失败返回 HTTP 401/403（凭证错）或其它状态码。
  */
 export async function loginWithCredentials(username: string, password: string): Promise<string> {
-  const started = Date.now();
-  const response = await fetch(LOGIN_URL, {
-    method: 'POST',
-    headers: { Accept: 'text/plain' },
-    body: new URLSearchParams({ username, password }),
-  });
-  const text = (await response.text()).trim();
-  // 登录链路落盘日志（不写凭证内容）：失败时 AI 直接读日志定位，不靠用户截图猜
   const { info, error } = await import('@tauri-apps/plugin-log');
+  await info(`[login] start, username length ${username.length}, password length ${password.length}`);
+  const started = Date.now();
+  let response: Response;
+  try {
+    response = await fetch(LOGIN_URL, {
+      method: 'POST',
+      headers: { Accept: 'text/plain' },
+      body: new URLSearchParams({ username, password }),
+    });
+  } catch (fetchError) {
+    // fetch 本身抛错（网络/代理/插件 IPC）：此前日志在 fetch 之后才写，导致这类失败无日志可查
+    await error(`[login] fetch threw after ${Date.now() - started}ms: ${String(fetchError)}`);
+    throw fetchError;
+  }
+  const text = (await response.text()).trim();
   const ms = Date.now() - started;
   if (!response.ok || !text) {
     await error(`[login] credentials exchange failed: HTTP ${response.status} in ${ms}ms body="${text.slice(0, 80)}"`);

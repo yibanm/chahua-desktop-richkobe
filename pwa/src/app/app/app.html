@@ -42,6 +42,8 @@
           </div>
           @if (showDesktopLogin && needsLogin() && !loading()) {
             <div class="entry-paste">
+              <!-- 测试包构建标识：确认用户跑的哪个包，排查时第一证据 -->
+              <p class="entry-build-tag">{{ buildTag }}</p>
               <ion-button class="entry-paste-button entry-paste-button--primary" expand="block" [disabled]="pwaScanning()" (click)="oneClickLogin()">
                 @if (pwaScanning()) {
                   <ion-spinner slot="start" />

@@ -31,7 +31,7 @@ import { filter, map, TimeoutError } from 'rxjs';
 import { ChatLink } from '../chats/chat-link/chat-link';
 import { ChatList } from '../chats/chat-list/chat-list';
 import { listSelection, ListTab, type ListSelection } from '../chats/list-tabs';
-import { isTauri, readPwaJwt, loginWithCredentials, DesktopLoginError } from '../tauri/tauri-runtime';
+import { DESKTOP_BUILD_TAG, isTauri, loginWithCredentials, DesktopLoginError, readPwaJwt } from '../tauri/tauri-runtime';
 import { PanelNavigation } from '../navigation/panel-navigation';
 import { AppUpdates } from '../pwa/app-updates';
 import { NotificationPrompt } from '../pwa/notification-prompt/notification-prompt';
@@ -118,6 +118,7 @@ export class App {
   // 桌面壳登录：主路线读浏览器 PWA 已保存的登录态（Chromium localStorage 明文 JWT），
   // 命中即提示「已识别到 PWA 的登录信息，自动登录」；未命中引导用户用 CookieXport 导出后粘贴。
   protected readonly showDesktopLogin = isTauri();
+  protected readonly buildTag = DESKTOP_BUILD_TAG;
   protected readonly showPasteBox = signal(false);
   protected readonly entryLink = signal('');
   protected readonly entryLinkInvalid = signal(false);
@@ -339,6 +340,18 @@ export class App {
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('login-timeout-5s')), 5000)),
       ]);
     } catch (error) {
+      // 落盘失败类别：凭证错 / 5 秒超时 / fetch 抛错 / 其它——无日志时这三者无法区分
+      void import('@tauri-apps/plugin-log').then((m) =>
+        m.error(
+          `[login] submitPasswordLogin failed: ${
+            error instanceof DesktopLoginError
+              ? `HTTP ${error.status} ${error.detail.slice(0, 80)}`
+              : error instanceof Error
+                ? error.message
+                : String(error)
+          }`,
+        ),
+      );
       this.passwordValue.set('');
       this.passwordBusy.set(false);
       this.loginProgress.set(0);
