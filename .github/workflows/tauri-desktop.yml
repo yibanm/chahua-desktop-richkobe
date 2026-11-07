@@ -219,4 +219,8 @@ jobs:
               --title "茶话桌面版 v${ver}" \
               --notes-file notes.md
           fi
+          # gh release create 在某些 runner 上落 draft:true（草稿不显示=用户两次看「没发布」）；
+          # 发版后强制公开并回读确认
+          gh release edit "$tag" --draft=false
+          gh release view "$tag" --json isDraft -q '.isDraft' | grep -q '^false$' || { echo "::error::Release 仍为草稿"; exit 1; }
           echo "Release: https://github.com/${{ github.repository }}/releases/tag/${tag}" >> "$GITHUB_STEP_SUMMARY"

@@ -193,13 +193,14 @@ ChatDetails 和 ConversationPage 激活同一个好友关系查询。用户资�
 
 ## 设置与应用外围
 
-| 组件                        | 状态与职责                                                                                                                                                 |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Settings                    | 当前用户和更新状态；持有局部更新结果，打开通知、隐私、聊天与语言子页                                                                                 |
-| NotificationSettings        | 本机通知开关、权限申请及重试；私聊／群组 NotificationCategory 摘要行；进入时检查本机订阅，权限拒绝使用 toast                                               |
-| NotificationCategoryPage    | 分类通知独立路由页面；标题、返回和 NotificationCategory 详情                                                                                               |
-| NotificationExceptionPicker | 激活普通／归档聊天查询，搜索已加载聊天，添加与默认相反的永久例外                                                                                           |
-| NotificationCategory        | 紧凑摘要或分类详情；正向通知开关、完整总数、例外分页、添加／移除／确认批量清除；刷新保留内容                                                               |
+| 组件                        | 状态与职责                                                                                                                                                                         |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Settings                    | 当前用户和更新状态；持有局部更新结果，打开通知、隐私、聊天与语言子页                                                                                                               |
+| DiagnosticsCopy             | row 输入决定列表行或按钮呈现；共享待复制状态与成功／失败 Toast；创建时采集 Worker 状态，点击直接复制 Diagnostics 报告；用于设置及会话失败页                                          |
+| NotificationSettings        | 本机通知开关、权限申请及重试；私聊／群组 NotificationCategory 摘要行；进入时检查本机订阅，权限拒绝使用 toast                                                                       |
+| NotificationCategoryPage    | 分类通知独立路由页面；标题、返回和 NotificationCategory 详情                                                                                                                       |
+| NotificationExceptionPicker | 激活普通／归档聊天查询，搜索已加载聊天，添加与默认相反的永久例外                                                                                                                   |
+| NotificationCategory        | 紧凑摘要或分类详情；正向通知开关、完整总数、例外分页、添加／移除／确认批量清除；刷新保留内容                                                                                       |
 | GeneralSettings             | 提供表情和贴纸子页入口，编辑 Preferences 的颜色模式、消息字号及本机显示开关；群成员进出群消息开关从账号资料派生，通过 Preferences 调用 SessionStore 保存，持有局部保存中与错误状态 |
 | LanguageSettings            | 自动/三种语言的单选；写入 Preferences 并调用 Localization 切换 catalog                                                                                     |
 | FriendVerificationSettings  | Signal Form、读取/保存状态与结果；FriendsService                                                                                                           |

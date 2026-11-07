@@ -17,12 +17,13 @@ import {
 } from '../../generated/models';
 import { Connection } from '../api/connection';
 import { ChatChangeKind, ChatStore } from '../chats/chat-store';
-import { type SnowflakeID } from '../api/snowflake-id';
+import { decodeId, type SnowflakeID } from '../api/snowflake-id';
 import { type MessageChange } from '../messages/message-change';
 import { mergeMessages } from '../messages/message-merge';
 import { MessageArchive } from '../messages/message-archive';
 import { isVisibleMessage } from '../messages/message-visibility';
 import { preserveReactionOwnership } from '../messages/reaction-state';
+import { Diagnostics } from '../pwa/diagnostics';
 export enum PageDirection {
   Older,
   Newer,
@@ -46,6 +47,7 @@ export class ConversationStore {
   private readonly preferences = inject(Preferences);
   private readonly archive = inject(MessageArchive);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly diagnostics = inject(Diagnostics);
   private version = 0;
   private readonly cancel = new Subject<void>();
   private latestSeenId?: SnowflakeID;
@@ -152,6 +154,7 @@ export class ConversationStore {
     if (!this.needsResync && !filterChanged && !around && this.atLatest()) return true;
     this.isLoading.set(true);
     this.needsResync = false;
+    const startedAt = performance.now();
     try {
       const mentionVersion = this.chatInfo.snapshot();
       const policyGeneration = this.chatInfo.membershipPolicyRequestGeneration();
@@ -195,6 +198,13 @@ export class ConversationStore {
         );
       }
       if (version === this.version) {
+        this.diagnostics.recordError('conversation.open.failed', error, {
+          operation: 'messages.list',
+          chatId: this.context && decodeId(this.context.chatId),
+          threadId: this.context?.threadId != null ? decodeId(this.context.threadId) : undefined,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+        void this.diagnostics.captureWorker();
         this.needsResync = true;
         this.currentError.set(ConversationError.Open);
       }
@@ -222,6 +232,7 @@ export class ConversationStore {
     if (direction === PageDirection.Newer) this.needsResync = false;
     this.pageDirection.set(direction);
     this.currentError.set(undefined);
+    const startedAt = performance.now();
     try {
       const mentionVersion = this.chatInfo.snapshot();
       const page = await firstValueFrom(
@@ -255,8 +266,17 @@ export class ConversationStore {
           : this.withLiveCursor({ ...updated, newerCursor: page.newerCursor });
       });
     } catch (error) {
-      if (version === this.version && !(error instanceof ChatSettingsChanged))
+      if (version === this.version && !(error instanceof ChatSettingsChanged)) {
+        this.diagnostics.recordError('conversation.page.failed', error, {
+          operation: 'messages.list',
+          chatId: this.context && decodeId(this.context.chatId),
+          threadId: this.context?.threadId != null ? decodeId(this.context.threadId) : undefined,
+          direction: PageDirection[direction],
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+        void this.diagnostics.captureWorker();
         this.currentError.set(ConversationError.Page);
+      }
     } finally {
       if (version === this.version) {
         this.pageDirection.set(undefined);

@@ -4,6 +4,7 @@ import { provideServiceWorker } from '@angular/service-worker';
 import { AppInstall } from './app/pwa/app-install';
 import { AppUpdates } from './app/pwa/app-updates';
 import { LegacyMigration } from './app/pwa/legacy-migration';
+import { Diagnostics } from './app/pwa/diagnostics';
 import { HttpFeature, HttpFeatureKind, provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { bootstrapApplication } from '@angular/platform-browser';
 import {
@@ -63,6 +64,7 @@ bootstrapApplication(App, {
       loader: TranslocoHttpLoader,
     }),
     provideAppInitializer(async () => {
+      inject(Diagnostics);
       inject(AppInstall);
       inject(Appearance);
       inject(AppUpdates);
