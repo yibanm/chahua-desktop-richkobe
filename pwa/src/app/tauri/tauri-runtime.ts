@@ -50,7 +50,7 @@ export class DesktopLoginError extends Error {
  * 测试包用 release profile 构建（debug profile 无优化，低内存机器上卡）；
  * 标识只表「第几个测试包」，不表构建 profile。
  */
-export const DESKTOP_BUILD_TAG = 'b25';
+export const DESKTOP_BUILD_TAG = 'b26';
 
 /**
  * 读取浏览器 PWA 已保存的茶话登录态（Rust 侧只读扫描 Chromium Local Storage）。
