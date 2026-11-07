@@ -108,6 +108,22 @@ jobs:
           '
           echo "version=${{ steps.naming.outputs.version }} label=${{ matrix.label }}"
 
+      # 正式版（tag 触发）注入 CHAHUA_OFFICIAL=true：入口屏不显示构建号标识；
+      # 分支/手动构建保持 false，测试包继续显示构建号（用户裁定）
+      - name: Mark official build
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            const p = "angular.json";
+            const j = JSON.parse(fs.readFileSync(p, "utf8"));
+            const def = j.projects[Object.keys(j.projects)[0]].architect.build.configurations.tauri.define;
+            def.CHAHUA_OFFICIAL = "true";
+            fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");
+            console.log("CHAHUA_OFFICIAL=true injected for tag build");
+          '
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v1
         env:

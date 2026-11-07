@@ -45,7 +45,11 @@ await import('./main');
 // 用于确认用户跑的到底是哪个包（此前出现过日志全空=跑的旧包的误判）。
 // 走自定义 frontend_log 命令：plugin-log 前端 API 实测不落文件。
 void import('./app/tauri/tauri-runtime')
-  .then((m) => m.logInfo(`[boot] build=${m.DESKTOP_BUILD_TAG} ua=${navigator.userAgent.slice(0, 60)}`))
+  .then((m) =>
+    m.logInfo(
+      `[boot] build=${m.DESKTOP_BUILD_TAG} official=${typeof CHAHUA_OFFICIAL !== 'undefined' && CHAHUA_OFFICIAL} ua=${navigator.userAgent.slice(0, 60)}`,
+    ),
+  )
   .catch(() => {});
 
 // 外链交给系统默认浏览器：壳内 WebView 没有 target="_blank" 出口，点击会静默失败。

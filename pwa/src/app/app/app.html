@@ -42,8 +42,10 @@
           </div>
           @if (showDesktopLogin && needsLogin() && !loading()) {
             <div class="entry-paste">
-              <!-- 测试包构建标识：确认用户跑的哪个包，排查时第一证据 -->
-              <p class="entry-build-tag">{{ buildTag }}</p>
+              <!-- 测试包构建标识：正式版（CHAHUA_OFFICIAL）为空串不渲染 -->
+              @if (buildTag) {
+                <p class="entry-build-tag">{{ buildTag }}</p>
+              }
               @if (showOneClick) {
                 <ion-button class="entry-paste-button entry-paste-button--primary" expand="block" [disabled]="pwaScanning()" (click)="oneClickLogin()">
                   @if (pwaScanning()) {

@@ -118,7 +118,10 @@ export class App {
   // 桌面壳登录：主路线读浏览器 PWA 已保存的登录态（Chromium localStorage 明文 JWT），
   // 命中即提示「已识别到 PWA 的登录信息，自动登录」；未命中引导用户用 CookieXport 导出后粘贴。
   protected readonly showDesktopLogin = isTauri();
-  protected readonly buildTag = DESKTOP_BUILD_TAG;
+  // 正式版（tag 触发的 CI 构建注入 CHAHUA_OFFICIAL=true）界面不显示任何构建标识；
+  // 测试包才显示构建号（用户裁定：正式版就是正式版，构建版才带号）。日志仍记录供排查。
+  protected readonly buildTag =
+    typeof CHAHUA_OFFICIAL !== 'undefined' && CHAHUA_OFFICIAL ? '' : DESKTOP_BUILD_TAG;
   // 账号密码登录在全部 Tauri 壳开放（桌面+安卓）：接口实测可用（200/JWT/2.7~5.05s/不校验 UA），
   // 安卓读不到浏览器 leveldb 必须靠它；桌面作为可验证的登录途径保留（用户 2026-11-06 要求加回）
   protected readonly showPasswordLogin = isTauri();

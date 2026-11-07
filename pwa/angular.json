@@ -73,7 +73,8 @@
               "define": {
                 "CHAHUA_API_BASE": "'https://chahui.app/_api'",
                 "CHAHUA_DEV_BACKEND": "false",
-                "CHAHUA_APP_VERSION": "'chahua-desktop-richkobe'"
+                "CHAHUA_APP_VERSION": "'chahua-desktop-richkobe'",
+                "CHAHUA_OFFICIAL": "false"
               }
             },
             "development": {
