@@ -2,7 +2,7 @@ name: Tauri Desktop Build
 
 # 阶段一（CLAUDE.md 0.11）：推 dev 分支或手动触发即构建，产物只上传为 workflow artifact；
 # 阶段二：推 v* 标签时，release job 汇总全平台产物自动创建 GitHub Release。
-# 平台矩阵（用户 2026-11-07 指令）：Windows 安装版+便携版、macOS、Linux；安卓只出 arm64-v8a 与 armeabi-v7a。
+# 平台矩阵（用户 2026-11-07 指令）：Windows 安装版+便携版、macOS、Linux；安卓构建已迁至 chahua-android-richkobe 仓库。
 on:
   workflow_dispatch:
   push:
@@ -154,78 +154,9 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  android:
-    name: Build Android (arm64-v8a + armeabi-v7a)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: pwa
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android,armv7-linux-androideabi
-
-      - name: Setup Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Setup Android SDK + NDK
-        uses: android-actions/setup-android@v3
-        with:
-          # compileSdk/targetSdk 由 tauri android init 生成为 37，装 35 会构建失败
-          packages: 'platform-tools platforms;android-36 build-tools;36.0.0 ndk;27.0.12077973'
-
-      - name: Cache npm
-        uses: actions/cache@v6
-        with:
-          path: ~/.npm
-          key: android-npm-${{ hashFiles('pwa/package-lock.json') }}
-
-      - name: Install frontend dependencies
-        run: npm ci
-
-      - name: Build APKs (v7a + v8a only)
-        env:
-          TAURI_ANDROID_NDK_VERSION: '27.0.12077973'
-        # tauri CLI 的 --target 只收短名（aarch64/armv7/i686/x86_64），写完整 rust triple 会报 invalid value
-        run: npx tauri android build --apk --target aarch64 --target armv7
-
-      - name: Collect artifacts
-        shell: bash
-        run: |
-          mkdir -p ../dist-release
-          v=$(node -e 'console.log(require("./src-tauri/tauri.conf.json").version)')
-          # tauri CLI 的 --target aarch64+armv7 只编这两个 ABI，产物 universal APK 内恰含
-          # lib/arm64-v8a 与 lib/armeabi-v7a 两个 .so（已 unzip 验证），装到两类设备各自取用；
-          # per-flavor 分包需 gradle 直跑且其 rustBuild 任务依赖 npm 环境（本地实测失败），不采用
-          apk=$(find src-tauri/gen/android/app/build/outputs/apk -name 'app-universal-release*.apk' | head -1)
-          [ -n "$apk" ] || { echo "::error::未找到 universal apk"; find src-tauri/gen/android/app/build/outputs -name '*.apk'; exit 1; }
-          cp "$apk" "../dist-release/chahua-tauri-${v}-android-universal.apk"
-          ls -la ../dist-release
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: artifacts-android
-          path: dist-release/
-          if-no-files-found: error
-          retention-days: 14
-
   release:
     name: Create GitHub Release
-    needs: [build, android]
+    needs: [build]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:

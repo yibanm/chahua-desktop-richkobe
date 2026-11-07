@@ -141,15 +141,21 @@ interface VersionManifest {
 }
 
 // 版本信息通道（用户要求「更新检查要对上镜像源」）：镜像前缀 → 镜像前缀 → 直连，依次尝试。
-// 实测（--noproxy）：ghfast/ghproxy 代理 raw 均 200，直连 200。
+// 桌面与安卓分仓发布（用户裁定），各自读自己仓库的 version.json。
 // **走原生 XHR 而非 fetch**：fetch 被 monkey-patch 到 plugin-http，而镜像前缀 URL 不是合法
 // capabilities pattern（写进 allow 会让整个 http scope 反序列化失败，v1.1.0 事故）；
 // XHR 不经 capabilities，WebView 内核层 --no-proxy-server 直连，镜像本身是普通 HTTPS 主机。
-const VERSION_URLS = [
-  'https://ghfast.top/https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/main/version.json',
-  'https://ghproxy.net/https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/main/version.json',
-  'https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/main/version.json',
-];
+const VERSION_URLS = (isAndroidShell()
+  ? [
+      'https://ghfast.top/https://raw.githubusercontent.com/yibanm/chahua-android-richkobe/main/version.json',
+      'https://ghproxy.net/https://raw.githubusercontent.com/yibanm/chahua-android-richkobe/main/version.json',
+      'https://raw.githubusercontent.com/yibanm/chahua-android-richkobe/main/version.json',
+    ]
+  : [
+      'https://ghfast.top/https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/main/version.json',
+      'https://ghproxy.net/https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/main/version.json',
+      'https://raw.githubusercontent.com/yibanm/chahua-desktop-richkobe/main/version.json',
+]);
 
 function xhrJson(url: string): Promise<VersionManifest> {
   return new Promise((resolve, reject) => {
@@ -177,8 +183,8 @@ export async function fetchDesktopUpdateInfo(
       const manifest = await xhrJson(url);
       const version = manifest.version;
       if (!version || compareVersions(version, currentVersion) <= 0) return undefined;
-      const releaseUrl =
-        manifest.releaseUrl ?? `https://github.com/yibanm/chahua-desktop-richkobe/releases/tag/v${version}`;
+      const repo = isAndroidShell() ? 'chahua-android-richkobe' : 'chahua-desktop-richkobe';
+      const releaseUrl = manifest.releaseUrl ?? `https://github.com/yibanm/${repo}/releases/tag/v${version}`;
       return { version, releaseUrl, downloadUrl: manifest.downloadUrl };
     } catch (error) {
       lastError = error;
