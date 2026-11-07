@@ -90,9 +90,14 @@ export class Settings {
 
   protected logout() {
     this.session.logout();
-    // 设置页是浮层：只清 token 会留下浮层让用户再点一次「完成」，
-    // 故同批关闭浮层，未登录态模板自动渲染入口屏
-    void this.panels.close();
+    if (isTauri()) {
+      // 壳内 WebView 历史栈与路由 depth 不可靠，panels.close() 的 historyGo(-depth)
+      // 会算错导致浮层不关（桌面「退出不自动关闭」、安卓「退出失败」均为此因）。
+      // 清 token 后重载直达入口屏；启动遮罩为深色，无白闪。Web 版保持上游 close 逻辑。
+      window.location.reload();
+    } else {
+      void this.panels.close();
+    }
   }
 
   /**
